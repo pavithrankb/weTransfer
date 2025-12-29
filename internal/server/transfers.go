@@ -146,7 +146,7 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.NotFound(w, r)
-	return
+
 }
 
 type uploadURLRequest struct {
