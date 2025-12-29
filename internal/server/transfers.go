@@ -109,21 +109,44 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 	id := parts[0]
 	action := parts[1]
 
-	if action != "upload-url" {
-		http.NotFound(w, r)
-		return
-	}
-
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		if s.logger != nil {
-			s.logger.Printf("method not allowed for upload-url: %s", r.Method)
+	// method requirements: GET for download-url, POST for others
+	if action == "download-url" {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			if s.logger != nil {
+				s.logger.Printf("method not allowed for transfers download-url: %s %s", r.Method, r.URL.Path)
+			}
+			return
 		}
+	} else {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			if s.logger != nil {
+				s.logger.Printf("method not allowed for transfers subroute: %s %s", r.Method, r.URL.Path)
+			}
+			return
+		}
+	}
+
+	if action == "upload-url" {
+		s.uploadURLHandler(w, r, id)
 		return
 	}
 
-	s.uploadURLHandler(w, r, id)
+	if action == "complete" {
+		s.completeHandler(w, r, id)
+		return
+	}
+
+	if action == "download-url" {
+		s.downloadURLHandler(w, r, id)
+		return
+	}
+
+	http.NotFound(w, r)
+	return
 }
 
 type uploadURLRequest struct {
@@ -134,6 +157,10 @@ type uploadURLRequest struct {
 type uploadURLResponse struct {
 	UploadURL string `json:"upload_url"`
 	ObjectKey string `json:"object_key"`
+}
+
+type downloadURLResponse struct {
+	DownloadURL string `json:"download_url"`
 }
 
 func (s *Server) uploadURLHandler(w http.ResponseWriter, r *http.Request, id string) {
@@ -230,4 +257,146 @@ func (s *Server) uploadURLHandler(w http.ResponseWriter, r *http.Request, id str
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(uploadURLResponse{UploadURL: uploadURL, ObjectKey: objectKey})
+}
+
+// downloadURLHandler validates a READY transfer and returns a short-lived presigned GET URL.
+func (s *Server) downloadURLHandler(w http.ResponseWriter, r *http.Request, id string) {
+	ctx := r.Context()
+
+	var status string
+	var expiresAt time.Time
+	var objectKey *string
+
+	// fetch status, expires_at, object_key
+	err := s.db.QueryRow(ctx, `SELECT status, expires_at, object_key FROM transfers WHERE id=$1`, id).Scan(&status, &expiresAt, &objectKey)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			if s.logger != nil {
+				s.logger.Printf("download: transfer not found id=%s", id)
+			}
+			http.Error(w, "transfer not found", http.StatusNotFound)
+			return
+		}
+		if s.logger != nil {
+			s.logger.Printf("download: failed to fetch transfer id=%s: %v", id, err)
+		}
+		http.Error(w, "failed to fetch transfer", http.StatusInternalServerError)
+		return
+	}
+
+	if status != "READY" {
+		if s.logger != nil {
+			s.logger.Printf("download: transfer not READY id=%s status=%s", id, status)
+		}
+		http.Error(w, "transfer not ready", http.StatusBadRequest)
+		return
+	}
+
+	if !expiresAt.IsZero() && expiresAt.Before(time.Now().UTC()) {
+		if s.logger != nil {
+			s.logger.Printf("download: transfer expired id=%s expires_at=%s", id, expiresAt)
+		}
+		http.Error(w, "transfer expired", http.StatusGone)
+		return
+	}
+
+	if objectKey == nil || strings.TrimSpace(*objectKey) == "" {
+		if s.logger != nil {
+			s.logger.Printf("download: missing object_key id=%s", id)
+		}
+		http.Error(w, "object not available", http.StatusBadRequest)
+		return
+	}
+
+	bucket := os.Getenv("S3_BUCKET")
+	if bucket == "" {
+		if s.logger != nil {
+			s.logger.Printf("download: s3 bucket not configured")
+		}
+		http.Error(w, "s3 bucket not configured", http.StatusInternalServerError)
+		return
+	}
+
+	downloadURL, err := s.s3.PresignGetURL(ctx, bucket, *objectKey, 5*time.Minute)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Printf("download: failed to presign get url id=%s key=%s: %v", id, *objectKey, err)
+		}
+		http.Error(w, "failed to presign download url", http.StatusInternalServerError)
+		return
+	}
+
+	if s.logger != nil {
+		s.logger.Printf("download url generated id=%s key=%s", id, *objectKey)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(downloadURLResponse{DownloadURL: downloadURL})
+}
+
+// completeHandler marks a transfer as READY after validating state and expiry.
+func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id string) {
+	ctx := r.Context()
+
+	var status string
+	var expiresAt time.Time
+	err := s.db.QueryRow(ctx, `SELECT status, expires_at FROM transfers WHERE id=$1`, id).Scan(&status, &expiresAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			if s.logger != nil {
+				s.logger.Printf("complete: transfer not found id=%s", id)
+			}
+			http.Error(w, "transfer not found", http.StatusNotFound)
+			return
+		}
+		if s.logger != nil {
+			s.logger.Printf("complete: failed to fetch transfer id=%s: %v", id, err)
+		}
+		http.Error(w, "failed to fetch transfer", http.StatusInternalServerError)
+		return
+	}
+
+	if status != "INIT" {
+		if s.logger != nil {
+			s.logger.Printf("complete: invalid state id=%s status=%s", id, status)
+		}
+		http.Error(w, "transfer not in INIT state", http.StatusBadRequest)
+		return
+	}
+
+	if !expiresAt.IsZero() && expiresAt.Before(time.Now().UTC()) {
+		if s.logger != nil {
+			s.logger.Printf("complete: transfer expired id=%s expires_at=%s", id, expiresAt)
+		}
+		http.Error(w, "transfer expired", http.StatusGone)
+		return
+	}
+
+	// perform strict update: only set to READY if currently INIT
+	tag, err := s.db.Exec(ctx, `UPDATE transfers SET status=$1 WHERE id=$2 AND status=$3`, "READY", id, "INIT")
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Printf("complete: failed to update transfer id=%s: %v", id, err)
+		}
+		http.Error(w, "failed to update transfer", http.StatusInternalServerError)
+		return
+	}
+
+	if tag.RowsAffected() == 0 {
+		// another concurrent change; be strict
+		if s.logger != nil {
+			s.logger.Printf("complete: no rows updated (concurrent) id=%s", id)
+		}
+		http.Error(w, "transfer state changed", http.StatusConflict)
+		return
+	}
+
+	if s.logger != nil {
+		s.logger.Printf("transfer marked READY id=%s", id)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "READY"})
 }

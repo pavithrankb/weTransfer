@@ -11,7 +11,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/transfers", s.createTransferHandler)
 	mux.HandleFunc("/transfers/", s.transfersSubHandler)
-
 	return mux
 }
 
