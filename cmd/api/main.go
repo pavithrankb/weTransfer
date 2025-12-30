@@ -56,6 +56,18 @@ func main() {
 
 	srv := server.NewServer(pool, s3h, logger, *debugMode)
 
+	// background cleanup job
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if *debugMode {
+				logger.Println("starting background cleanup...")
+			}
+			srv.RunCleanup()
+		}
+	}()
+
 	logger.Println("Server listening on port 8080...")
 	if err := srv.ListenAndServe(); err != nil {
 		logger.Panicf("cannot start server: %s", err)

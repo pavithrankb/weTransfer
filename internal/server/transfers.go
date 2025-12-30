@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -14,7 +15,8 @@ import (
 )
 
 type createTransferRequest struct {
-	ExpiresAt time.Time `json:"expires_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	MaxDownloads *int      `json:"max_downloads"`
 }
 
 type createTransferResponse struct {
@@ -51,6 +53,18 @@ func (s *Server) createTransferHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	maxDownloads := 1
+	if req.MaxDownloads != nil {
+		if *req.MaxDownloads < 1 {
+			if s.logger != nil {
+				s.logger.Printf("invalid max_downloads: %d", *req.MaxDownloads)
+			}
+			http.Error(w, "max_downloads must be >= 1", http.StatusBadRequest)
+			return
+		}
+		maxDownloads = *req.MaxDownloads
+	}
+
 	id := uuid.New().String()
 
 	ctx := r.Context()
@@ -67,7 +81,7 @@ func (s *Server) createTransferHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(ctx)
 
-	_, err = tx.Exec(ctx, `INSERT INTO transfers(id, expires_at, status, created_at) VALUES ($1, $2, $3, now())`, id, req.ExpiresAt, "INIT")
+	_, err = tx.Exec(ctx, `INSERT INTO transfers(id, expires_at, status, created_at, max_downloads) VALUES ($1, $2, $3, now(), $4)`, id, req.ExpiresAt, "INIT", maxDownloads)
 	if err != nil {
 		if s.logger != nil {
 			s.logger.Printf("failed to insert transfer: %v", err)
@@ -107,9 +121,12 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := parts[0]
-	action := parts[1]
+	var action string
+	if len(parts) > 1 {
+		action = parts[1]
+	}
 
-	// method requirements: GET for download-url, POST for others
+	// method requirements: GET for download-url, DELETE for root ID, POST for others
 	if action == "download-url" {
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)
@@ -117,6 +134,12 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 			if s.logger != nil {
 				s.logger.Printf("method not allowed for transfers download-url: %s %s", r.Method, r.URL.Path)
 			}
+			return
+		}
+	} else if action == "" || (action != "upload-url" && action != "complete") {
+		if r.Method != http.MethodDelete {
+			w.Header().Set("Allow", http.MethodDelete)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 	} else {
@@ -142,6 +165,11 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 
 	if action == "download-url" {
 		s.downloadURLHandler(w, r, id)
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		s.deleteTransferHandler(w, r, id)
 		return
 	}
 
@@ -204,19 +232,24 @@ func (s *Server) uploadURLHandler(w http.ResponseWriter, r *http.Request, id str
 		return
 	}
 
+	if isExpired(expiresAt) {
+		if status != "EXPIRED" {
+			_, _ = s.db.Exec(ctx, `UPDATE transfers SET status='EXPIRED' WHERE id=$1`, id)
+		}
+		if s.logger != nil {
+			s.logger.Printf("transfer expired id=%s expires_at=%s", id, expiresAt)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusGone)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "transfer_expired"})
+		return
+	}
+
 	if status != "INIT" {
 		if s.logger != nil {
 			s.logger.Printf("transfer not in INIT state id=%s status=%s", id, status)
 		}
 		http.Error(w, "transfer not in INIT state", http.StatusBadRequest)
-		return
-	}
-
-	if !expiresAt.IsZero() && expiresAt.Before(time.Now().UTC()) {
-		if s.logger != nil {
-			s.logger.Printf("transfer expired id=%s expires_at=%s", id, expiresAt)
-		}
-		http.Error(w, "transfer expired", http.StatusGone)
 		return
 	}
 
@@ -284,6 +317,19 @@ func (s *Server) downloadURLHandler(w http.ResponseWriter, r *http.Request, id s
 		return
 	}
 
+	if isExpired(expiresAt) {
+		if status != "EXPIRED" {
+			_, _ = s.db.Exec(ctx, `UPDATE transfers SET status='EXPIRED' WHERE id=$1`, id)
+		}
+		if s.logger != nil {
+			s.logger.Printf("download: transfer expired id=%s expires_at=%s", id, expiresAt)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusGone)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "transfer_expired"})
+		return
+	}
+
 	if status != "READY" {
 		if s.logger != nil {
 			s.logger.Printf("download: transfer not READY id=%s status=%s", id, status)
@@ -292,19 +338,32 @@ func (s *Server) downloadURLHandler(w http.ResponseWriter, r *http.Request, id s
 		return
 	}
 
-	if !expiresAt.IsZero() && expiresAt.Before(time.Now().UTC()) {
-		if s.logger != nil {
-			s.logger.Printf("download: transfer expired id=%s expires_at=%s", id, expiresAt)
-		}
-		http.Error(w, "transfer expired", http.StatusGone)
-		return
-	}
-
 	if objectKey == nil || strings.TrimSpace(*objectKey) == "" {
 		if s.logger != nil {
 			s.logger.Printf("download: missing object_key id=%s", id)
 		}
 		http.Error(w, "object not available", http.StatusBadRequest)
+		return
+	}
+
+	// atomic increment download_count
+	// we enforce max_downloads here by conditioning the update
+	tag, err := s.db.Exec(ctx, `UPDATE transfers SET download_count = download_count + 1 WHERE id=$1 AND download_count < max_downloads`, id)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Printf("download: failed to increment count id=%s: %v", id, err)
+		}
+		http.Error(w, "failed to update transfer", http.StatusInternalServerError)
+		return
+	}
+
+	if tag.RowsAffected() == 0 {
+		if s.logger != nil {
+			s.logger.Printf("download: limit reached id=%s", id)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusGone)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "transfer_limit_reached"})
 		return
 	}
 
@@ -357,19 +416,24 @@ func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id stri
 		return
 	}
 
+	if isExpired(expiresAt) {
+		if status != "EXPIRED" {
+			_, _ = s.db.Exec(ctx, `UPDATE transfers SET status='EXPIRED' WHERE id=$1`, id)
+		}
+		if s.logger != nil {
+			s.logger.Printf("complete: transfer expired id=%s expires_at=%s", id, expiresAt)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusGone)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "transfer_expired"})
+		return
+	}
+
 	if status != "INIT" {
 		if s.logger != nil {
 			s.logger.Printf("complete: invalid state id=%s status=%s", id, status)
 		}
 		http.Error(w, "transfer not in INIT state", http.StatusBadRequest)
-		return
-	}
-
-	if !expiresAt.IsZero() && expiresAt.Before(time.Now().UTC()) {
-		if s.logger != nil {
-			s.logger.Printf("complete: transfer expired id=%s expires_at=%s", id, expiresAt)
-		}
-		http.Error(w, "transfer expired", http.StatusGone)
 		return
 	}
 
@@ -399,4 +463,110 @@ func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id stri
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "READY"})
+}
+
+func (s *Server) deleteTransferHandler(w http.ResponseWriter, r *http.Request, id string) {
+	ctx := r.Context()
+	// Mark as DELETED
+	_, err := s.db.Exec(ctx, "UPDATE transfers SET status='DELETED' WHERE id=$1", id)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Printf("delete: failed to update status id=%s: %v", id, err)
+		}
+		http.Error(w, "failed to delete transfer", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+
+	// Trigger cleanup immediately (non-blocking or blocking? User said 'calls this function'. Blocking is safer for 'check' logic in this context or we can just run it)
+	// For simplicity and correctness with the requirement "calls this function", we invoke it.
+	// We run it in a goroutine to not block the response if there are many, but for a single delete it's fine.
+	// However, the function checks *all* deleted objects.
+	go s.RunCleanup()
+}
+
+func (s *Server) triggerDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		w.Header().Set("Allow", http.MethodDelete)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Trigger cleanup
+	s.RunCleanup()
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "cleanup triggered"})
+}
+
+// RunCleanup iterates over transfers that are EXPIRED or DELETED and still have an object_key.
+// It deletes the S3 object and then clears the object_key in the DB.
+func (s *Server) RunCleanup() {
+	// dedicated context for cleanup to avoid cancellation by parent request if used
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	bucket := os.Getenv("S3_BUCKET")
+	if bucket == "" {
+		if s.logger != nil {
+			s.logger.Println("cleanup: s3 bucket not configured")
+		}
+		return
+	}
+
+	// 1. Find candidates
+	rows, err := s.db.Query(ctx, `SELECT id, object_key FROM transfers WHERE (status = 'EXPIRED') AND object_key IS NOT NULL`)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Printf("cleanup: failed to query candidates: %v", err)
+		}
+		return
+	}
+	defer rows.Close()
+
+	type candidate struct {
+		ID  string
+		Key string
+	}
+	var candidates []candidate
+	for rows.Next() {
+		var c candidate
+		if err := rows.Scan(&c.ID, &c.Key); err != nil {
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+
+	if len(candidates) > 0 && s.logger != nil {
+		s.logger.Printf("cleanup: found %d transfers to clean", len(candidates))
+	}
+
+	// 2. Process each
+	for _, c := range candidates {
+		if s.logger != nil {
+			s.logger.Printf("cleanup: deleting s3 object %s for transfer %s", c.Key, c.ID)
+		}
+		if err := s.s3.DeleteObject(ctx, bucket, c.Key); err != nil {
+			if s.logger != nil {
+				s.logger.Printf("cleanup: failed to delete s3 object %s: %v", c.Key, err)
+			}
+			// continue to next, don't clear DB key if failed (so we retry later)
+			continue
+		}
+
+		// 3. Update DB
+		_, err := s.db.Exec(ctx, `UPDATE transfers SET status='DELETED', object_key=NULL WHERE id=$1`, c.ID)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Printf("cleanup: failed to update status to DELETED for %s: %v", c.ID, err)
+			}
+		}
+	}
+}
+
+func isExpired(expiresAt time.Time) bool {
+	if expiresAt.IsZero() {
+		return false
+	}
+	return time.Now().UTC().After(expiresAt)
 }

@@ -18,7 +18,7 @@ type Server struct {
 	debug  bool
 }
 
-func NewServer(db *pgxpool.Pool, s3h *storage.S3, logger *log.Logger, debug bool) *http.Server {
+func NewServer(db *pgxpool.Pool, s3h *storage.S3, logger *log.Logger, debug bool) *Server {
 	port := 8080
 	s := &Server{
 		port:   port,
@@ -28,6 +28,10 @@ func NewServer(db *pgxpool.Pool, s3h *storage.S3, logger *log.Logger, debug bool
 		debug:  debug,
 	}
 
+	return s
+}
+
+func (s *Server) ListenAndServe() error {
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.port),
 		Handler:      s.RegisterRoutes(),
@@ -35,6 +39,5 @@ func NewServer(db *pgxpool.Pool, s3h *storage.S3, logger *log.Logger, debug bool
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
-
-	return server
+	return server.ListenAndServe()
 }

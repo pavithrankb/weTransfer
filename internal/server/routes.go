@@ -10,6 +10,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/transfers", s.createTransferHandler)
+	mux.HandleFunc("/trigger-delete", s.triggerDeleteHandler)
 	mux.HandleFunc("/transfers/", s.transfersSubHandler)
 	return mux
 }

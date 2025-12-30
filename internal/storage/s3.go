@@ -57,3 +57,12 @@ func (s *S3) PresignGetURL(ctx context.Context, bucket, key string, expires time
 
 	return resp.URL, nil
 }
+
+// DeleteObject deletes an object from S3.
+func (s *S3) DeleteObject(ctx context.Context, bucket, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	return err
+}
