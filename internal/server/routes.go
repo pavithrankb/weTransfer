@@ -9,7 +9,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", s.healthHandler)
-	mux.HandleFunc("/transfers", s.createTransferHandler)
+	mux.HandleFunc("/transfers", s.transfersRootHandler)
 	mux.HandleFunc("/trigger-delete", s.triggerDeleteHandler)
 	mux.HandleFunc("/transfers/", s.transfersSubHandler)
 	return mux

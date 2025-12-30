@@ -53,7 +53,7 @@ go run ./cmd/api --logToTerminal --debugMode
 ## Transfer Lifecycle
 
 ```
-INIT → READY → EXPIRED
+INIT → READY → EXPIRED → DELETED
 ```
 
 - **INIT**
@@ -62,9 +62,20 @@ INIT → READY → EXPIRED
 - **READY**
   - Client marked the transfer complete
   - Server set `status = READY`
+  - File is downloadable
 - **EXPIRED**
   - `expires_at` has passed
   - All operations fail with **410 Gone**
+  - Can be revived to READY by updating `expires_at`
+- **DELETED**
+  - Transfer explicitly deleted or cleaned up
+  - S3 object removed
+
+## Cleanup & Expiry
+
+- **Lazy Expiry**: Transfers are checked for expiry during access (get/list/action). If expired, status is updated to `EXPIRED` (410 Gone).
+- **Enforcement**: Actions on expired transfers are blocked.
+- **Cleanup Job**: A background job runs every hour to physically delete S3 objects for `EXPIRED` transfers and mark them as `DELETED`.
 
 ---
 
@@ -86,17 +97,91 @@ Create a transfer record.
 
 **Request JSON**
 ```json
-{ "expires_at": "2026-02-01T10:00:00Z" }
+{ 
+  "expires_at": "2026-02-01T10:00:00Z",
+  "max_downloads": 3  // Optional, default: 1
+}
 ```
 
 **Behavior**
 - Validates `expires_at` is in the future
+- Validates `max_downloads` >= 1
 - Creates a transfer with a generated UUID
 - Sets `status = "INIT"`
 
 **Response — 201 Created**
 ```json
 { "id": "<uuid>", "status": "INIT" }
+```
+
+### GET `/transfers`
+
+List transfers with filtering and pagination.
+
+**Query Parameters**
+- `status`: (Optional) Filter by status (INIT, READY, EXPIRED, DELETED)
+- `limit`: (Optional) Items per page (default 50, max 100)
+- `offset`: (Optional) Pagination offset (default 0)
+
+**Response — 200 OK**
+```json
+{
+  "items": [...],
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### GET `/transfers/{id}`
+
+Get transfer details.
+
+**Response — 200 OK**
+```json
+{
+  "id": "<uuid>",
+  "status": "READY",
+  "expires_at": "...",
+  "download_count": 0,
+  "max_downloads": 3,
+  ...
+}
+```
+
+### PATCH `/transfers/{id}`
+
+Update a transfer.
+
+**Request JSON (Partial)**
+```json
+{
+  "expires_at": "2026-03-01T00:00:00Z",
+  "max_downloads": 5
+}
+```
+
+**Rules**
+- Allowed for **READY** and **EXPIRED** transfers.
+- **Revival**: Updating `expires_at` on an **EXPIRED** transfer sets it to **READY**.
+- **Status Update**: Status can be manually updated to `"EXPIRED"`.
+- Forbidden for **INIT** or **DELETED**.
+
+### DELETE `/transfers/{id}`
+
+Delete a transfer.
+
+**Behavior**
+- Deletes S3 object (best effort)
+- Performs a **Hard Delete** from the database (`DELETE FROM transfers`)
+- Returns `204 No Content`
+
+### DELETE `/trigger-delete`
+
+Manually trigger the background cleanup job.
+
+**Response — 200 OK**
+```json
+{ "message": "cleanup triggered" }
 ```
 
 ---
@@ -170,7 +255,9 @@ Generate a presigned S3 **GET** URL.
    - `status == "READY"`
    - not expired
    - `object_key` present
+   - `download_count < max_downloads`
 2. Generate a presigned GET URL (5-minute expiry)
+3. Atomically increment `download_count`
 
 **Response — 200 OK**
 ```json
@@ -184,7 +271,9 @@ Generate a presigned S3 **GET** URL.
 ### 1. Create a transfer
 
 ```bash
-curl -X POST http://localhost:8080/transfers   -H 'Content-Type: application/json'   -d '{"expires_at":"2026-02-01T10:00:00Z"}'
+curl -X POST http://localhost:8080/transfers \
+  -H 'Content-Type: application/json' \
+  -d '{"expires_at":"2026-02-01T10:00:00Z", "max_downloads": 5}'
 ```
 
 Response contains `id`.
@@ -194,7 +283,9 @@ Response contains `id`.
 ### 2. Request upload URL
 
 ```bash
-curl -X POST http://localhost:8080/transfers/<id>/upload-url   -H 'Content-Type: application/json'   -d '{"filename":"video.mp4","content_type":"video/mp4"}'
+curl -X POST http://localhost:8080/transfers/<id>/upload-url \
+  -H 'Content-Type: application/json' \
+  -d '{"filename":"video.mp4","content_type":"video/mp4"}'
 ```
 
 ---
@@ -204,7 +295,9 @@ curl -X POST http://localhost:8080/transfers/<id>/upload-url   -H 'Content-Type:
 > **Important:** `Content-Type` must match the value used when generating the upload URL.
 
 ```bash
-curl -X PUT "<upload_url>"   -H "Content-Type: video/mp4"   --upload-file ./video.mp4
+curl -X PUT "<upload_url>" \
+  -H "Content-Type: video/mp4" \
+  --upload-file ./video.mp4
 ```
 
 ---
@@ -238,4 +331,6 @@ expires_at TIMESTAMPTZ
 status TEXT
 object_key TEXT
 created_at TIMESTAMPTZ
+max_downloads INT DEFAULT 1
+download_count INT DEFAULT 0
 ```
