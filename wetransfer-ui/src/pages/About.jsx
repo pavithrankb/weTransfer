@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Server, Database, HardDrive, Smartphone, Cloud, Globe, FileUp, FileDown, User, Github, Linkedin, Mail, Clock, ArrowRight, CheckCircle, ArrowLeft, Upload, Settings } from 'lucide-react';
+import { Server, Database, HardDrive, Smartphone, Cloud, Globe, FileUp, FileDown, User, Github, Linkedin, Mail, Clock, ArrowRight, CheckCircle, ArrowLeft, Upload, Settings, Network } from 'lucide-react';
 
 const About = () => {
     const [activeTab, setActiveTab] = useState('upload'); // 'upload', 'download', or 'about'
@@ -494,446 +494,465 @@ const About = () => {
                             {activeTab === 'upload' ? 'Upload Architecture' : 'Download Architecture'}
                         </h3>
 
-                        {/* Diagram Container */}
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0px',
-                            position: 'relative'
-                        }}>
-                            {/* User Client with arrows originating from it */}
-                            <div style={{
-                                position: 'relative',
-                                zIndex: 3,
-                                marginBottom: '70px'  /* Space for arrows */
-                            }}>
-                                <Node
-                                    icon={Smartphone}
-                                    title="User Client"
-                                    subTitle="Browser"
-                                    desc="React App on AWS EC2"
-                                    color="#e879f9"
-                                />
-
-                                {/* Arrow 1: Originates from bottom-left of User Client, goes to EC2 */}
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: '-70px',
-                                    left: '-60px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center'
-                                }}>
-                                    <motion.div
-                                        style={{
-                                            width: '3px',
-                                            height: '70px',
-                                            background: 'linear-gradient(180deg, #6366f1, #6366f1)',
-                                            borderRadius: '2px',
-                                            position: 'relative',
-                                            boxShadow: '0 0 10px rgba(99, 102, 241, 0.6)'
-                                        }}
-                                        animate={{ opacity: [0.7, 1, 0.7] }}
-                                        transition={{ duration: 2, repeat: Infinity }}
-                                    >
-                                        {/* Arrow head at bottom */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            bottom: '-10px',
-                                            left: '50%',
-                                            transform: 'translateX(-50%)',
-                                            width: 0,
-                                            height: 0,
-                                            borderLeft: '8px solid transparent',
-                                            borderRight: '8px solid transparent',
-                                            borderTop: '12px solid #6366f1',
-                                            filter: 'drop-shadow(0 0 4px #6366f1)'
-                                        }} />
-                                        {/* Flowing dot */}
-                                        <motion.div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-4px',
-                                                width: '10px',
-                                                height: '10px',
-                                                borderRadius: '50%',
-                                                background: '#6366f1',
-                                                boxShadow: '0 0 12px #6366f1'
-                                            }}
-                                            animate={{ top: ['0%', '100%'] }}
-                                            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                                        />
-                                    </motion.div>
-                                    {/* Label */}
-                                    <motion.div
-                                        style={{
-                                            position: 'absolute',
-                                            top: '20px',
-                                            left: '-80px',
-                                            background: '#6366f1',
-                                            color: 'white',
-                                            padding: '5px 12px',
-                                            borderRadius: '6px',
-                                            fontSize: '10px',
-                                            fontWeight: 700,
-                                            whiteSpace: 'nowrap',
-                                            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)'
-                                        }}
-                                        animate={{ opacity: [0.8, 1, 0.8] }}
-                                        transition={{ duration: 1.5, repeat: Infinity }}
-                                    >
-                                        1. Request URL
-                                    </motion.div>
-                                </div>
-
-                                {/* Arrow 5: Originates from bottom-right of User Client, goes to S3 */}
-                                <div style={{
-                                    position: 'absolute',
-                                    bottom: '-70px',
-                                    right: '-60px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center'
-                                }}>
-                                    <motion.div
-                                        style={{
-                                            width: '3px',
-                                            height: '70px',
-                                            background: 'linear-gradient(180deg, #22c55e, #22c55e)',
-                                            borderRadius: '2px',
-                                            position: 'relative',
-                                            boxShadow: '0 0 10px rgba(34, 197, 94, 0.6)'
-                                        }}
-                                        animate={{ opacity: [0.7, 1, 0.7] }}
-                                        transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-                                    >
-                                        {/* Arrow head at bottom */}
-                                        <div style={{
-                                            position: 'absolute',
-                                            bottom: '-10px',
-                                            left: '50%',
-                                            transform: 'translateX(-50%)',
-                                            width: 0,
-                                            height: 0,
-                                            borderLeft: '8px solid transparent',
-                                            borderRight: '8px solid transparent',
-                                            borderTop: '12px solid #22c55e',
-                                            filter: 'drop-shadow(0 0 4px #22c55e)'
-                                        }} />
-                                        {/* Flowing dot */}
-                                        <motion.div
-                                            style={{
-                                                position: 'absolute',
-                                                left: '-4px',
-                                                width: '10px',
-                                                height: '10px',
-                                                borderRadius: '50%',
-                                                background: '#22c55e',
-                                                boxShadow: '0 0 12px #22c55e'
-                                            }}
-                                            animate={{ top: ['0%', '100%'] }}
-                                            transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.5 }}
-                                        />
-                                    </motion.div>
-                                    {/* Label */}
-                                    <motion.div
-                                        style={{
-                                            position: 'absolute',
-                                            top: '20px',
-                                            right: '-100px',
-                                            background: '#22c55e',
-                                            color: 'white',
-                                            padding: '5px 12px',
-                                            borderRadius: '6px',
-                                            fontSize: '10px',
-                                            fontWeight: 700,
-                                            whiteSpace: 'nowrap',
-                                            boxShadow: '0 2px 8px rgba(34, 197, 94, 0.4)'
-                                        }}
-                                        animate={{ opacity: [0.8, 1, 0.8] }}
-                                        transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}
-                                    >
-                                        5. {activeTab === 'upload' ? 'Direct Upload' : 'Direct Download'}
-                                    </motion.div>
-                                </div>
-                            </div>
-
-                            {/* Main row: EC2 Group, Middle Arrows, AWS Cloud Group */}
+                        {/* Diagram - Show image for Download, animated for Upload */}
+                        {activeTab === 'download' ? (
                             <div style={{
                                 display: 'flex',
-                                alignItems: 'stretch',
-                                gap: '30px',
                                 justifyContent: 'center',
-                                width: '100%',
-                                maxWidth: '900px'
+                                alignItems: 'center'
                             }}>
-                                {/* Left: AWS EC2 Group */}
+                                <img
+                                    src="/download-flow-architecture.png"
+                                    alt="Download Flow Architecture"
+                                    style={{
+                                        maxWidth: '100%',
+                                        height: 'auto',
+                                        borderRadius: '12px'
+                                    }}
+                                />
+                            </div>
+                        ) : (
+                            /* Diagram Container */
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0px',
+                                position: 'relative'
+                            }}>
+                                {/* User Client with arrows originating from it */}
                                 <div style={{
-                                    border: '2px dashed #6366f1',
-                                    borderRadius: '20px',
-                                    padding: '24px',
-                                    background: 'rgba(99, 102, 241, 0.05)',
                                     position: 'relative',
-                                    flex: '0 0 220px'
+                                    zIndex: 3,
+                                    marginBottom: '70px'  /* Space for arrows */
                                 }}>
-                                    <span style={{
+                                    <Node
+                                        icon={Smartphone}
+                                        title="User Client"
+                                        subTitle="Browser"
+                                        desc="React App on AWS EC2"
+                                        color="#e879f9"
+                                    />
+
+                                    {/* Arrow 1: Originates from bottom-left of User Client, goes to EC2 */}
+                                    <div style={{
                                         position: 'absolute',
-                                        top: '-12px',
-                                        left: '20px',
-                                        background: '#6366f1',
-                                        color: 'white',
-                                        padding: '4px 12px',
-                                        borderRadius: '6px',
-                                        fontSize: '11px',
-                                        fontWeight: 700
+                                        bottom: '-70px',
+                                        left: '-60px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center'
                                     }}>
-                                        AWS EC2 Instance
-                                    </span>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-                                        <Node
-                                            icon={Server}
-                                            title="Go Backend"
-                                            subTitle="API Server"
-                                            desc={activeTab === 'upload' ? 'Presigned URLs (5-min)' : 'Presigned URLs (configurable)'}
-                                            color="#6366f1"
-                                        />
-                                        <Node
-                                            icon={Globe}
-                                            title="React Frontend"
-                                            subTitle="NGINX"
-                                            desc="Static assets"
-                                            color="#22c55e"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Center: Arrows between Backend and AWS Services */}
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    justifyContent: 'flex-start',
-                                    gap: '20px',
-                                    paddingTop: '50px',
-                                    flex: '0 0 180px'
-                                }}>
-                                    {/* Arrow 2: Get Presigned URL */}
-                                    <div style={{ position: 'relative' }}>
                                         <motion.div
                                             style={{
-                                                height: '3px',
-                                                background: 'linear-gradient(90deg, #f59e0b 0%, #f59e0b 40%, #f59e0b40 100%)',
+                                                width: '3px',
+                                                height: '70px',
+                                                background: 'linear-gradient(180deg, #6366f1, #6366f1)',
                                                 borderRadius: '2px',
                                                 position: 'relative',
-                                                boxShadow: '0 0 8px rgba(245, 158, 11, 0.5)'
+                                                boxShadow: '0 0 10px rgba(99, 102, 241, 0.6)'
                                             }}
-                                            animate={{ opacity: [0.6, 1, 0.6] }}
-                                            transition={{ duration: 2, repeat: Infinity, delay: 0.2 }}
+                                            animate={{ opacity: [0.7, 1, 0.7] }}
+                                            transition={{ duration: 2, repeat: Infinity }}
                                         >
-                                            {/* Arrow head */}
+                                            {/* Arrow head at bottom */}
                                             <div style={{
                                                 position: 'absolute',
-                                                right: '-6px',
-                                                top: '-5px',
+                                                bottom: '-10px',
+                                                left: '50%',
+                                                transform: 'translateX(-50%)',
                                                 width: 0,
                                                 height: 0,
-                                                borderTop: '7px solid transparent',
-                                                borderBottom: '7px solid transparent',
-                                                borderLeft: '10px solid #f59e0b'
+                                                borderLeft: '8px solid transparent',
+                                                borderRight: '8px solid transparent',
+                                                borderTop: '12px solid #6366f1',
+                                                filter: 'drop-shadow(0 0 4px #6366f1)'
                                             }} />
                                             {/* Flowing dot */}
                                             <motion.div
                                                 style={{
                                                     position: 'absolute',
-                                                    width: '10px',
-                                                    height: '10px',
-                                                    borderRadius: '50%',
-                                                    background: '#f59e0b',
-                                                    boxShadow: '0 0 12px #f59e0b',
-                                                    top: '-4px'
-                                                }}
-                                                animate={{ left: ['0%', '100%'] }}
-                                                transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.2 }}
-                                            />
-                                        </motion.div>
-                                        <motion.div
-                                            style={{
-                                                marginTop: '8px',
-                                                background: '#f59e0b',
-                                                color: 'white',
-                                                padding: '5px 10px',
-                                                borderRadius: '6px',
-                                                fontSize: '10px',
-                                                fontWeight: 700,
-                                                textAlign: 'center',
-                                                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)'
-                                            }}
-                                            animate={{ opacity: [0.8, 1, 0.8] }}
-                                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-                                        >
-                                            2. Get Presigned URL
-                                        </motion.div>
-                                    </div>
-
-                                    {/* Arrow 3: Store Metadata */}
-                                    <div style={{ position: 'relative' }}>
-                                        <motion.div
-                                            style={{
-                                                height: '3px',
-                                                background: 'linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #3b82f640 100%)',
-                                                borderRadius: '2px',
-                                                position: 'relative',
-                                                boxShadow: '0 0 8px rgba(59, 130, 246, 0.5)'
-                                            }}
-                                            animate={{ opacity: [0.6, 1, 0.6] }}
-                                            transition={{ duration: 2, repeat: Infinity, delay: 0.4 }}
-                                        >
-                                            {/* Arrow head */}
-                                            <div style={{
-                                                position: 'absolute',
-                                                right: '-6px',
-                                                top: '-5px',
-                                                width: 0,
-                                                height: 0,
-                                                borderTop: '7px solid transparent',
-                                                borderBottom: '7px solid transparent',
-                                                borderLeft: '10px solid #3b82f6'
-                                            }} />
-                                            {/* Flowing dot */}
-                                            <motion.div
-                                                style={{
-                                                    position: 'absolute',
-                                                    width: '10px',
-                                                    height: '10px',
-                                                    borderRadius: '50%',
-                                                    background: '#3b82f6',
-                                                    boxShadow: '0 0 12px #3b82f6',
-                                                    top: '-4px'
-                                                }}
-                                                animate={{ left: ['0%', '100%'] }}
-                                                transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.4 }}
-                                            />
-                                        </motion.div>
-                                        <motion.div
-                                            style={{
-                                                marginTop: '8px',
-                                                background: '#3b82f6',
-                                                color: 'white',
-                                                padding: '5px 10px',
-                                                borderRadius: '6px',
-                                                fontSize: '10px',
-                                                fontWeight: 700,
-                                                textAlign: 'center',
-                                                boxShadow: '0 2px 8px rgba(59, 130, 246, 0.4)'
-                                            }}
-                                            animate={{ opacity: [0.8, 1, 0.8] }}
-                                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
-                                        >
-                                            3. Store Metadata
-                                        </motion.div>
-                                    </div>
-
-                                    {/* Arrow 4: URL Returned (now in the same area as arrows 2 and 3) */}
-                                    <div style={{ position: 'relative' }}>
-                                        <motion.div
-                                            style={{
-                                                height: '3px',
-                                                background: 'linear-gradient(270deg, #6366f1 0%, #6366f1 40%, #6366f140 100%)',
-                                                borderRadius: '2px',
-                                                position: 'relative',
-                                                boxShadow: '0 0 8px rgba(99, 102, 241, 0.5)'
-                                            }}
-                                            animate={{ opacity: [0.6, 1, 0.6] }}
-                                            transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
-                                        >
-                                            {/* Arrow head - pointing left */}
-                                            <div style={{
-                                                position: 'absolute',
-                                                left: '-6px',
-                                                top: '-5px',
-                                                width: 0,
-                                                height: 0,
-                                                borderTop: '7px solid transparent',
-                                                borderBottom: '7px solid transparent',
-                                                borderRight: '10px solid #6366f1'
-                                            }} />
-                                            {/* Flowing dot */}
-                                            <motion.div
-                                                style={{
-                                                    position: 'absolute',
+                                                    left: '-4px',
                                                     width: '10px',
                                                     height: '10px',
                                                     borderRadius: '50%',
                                                     background: '#6366f1',
-                                                    boxShadow: '0 0 12px #6366f1',
-                                                    top: '-4px'
+                                                    boxShadow: '0 0 12px #6366f1'
                                                 }}
-                                                animate={{ right: ['0%', '100%'] }}
-                                                transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.6 }}
+                                                animate={{ top: ['0%', '100%'] }}
+                                                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                                             />
                                         </motion.div>
+                                        {/* Label */}
                                         <motion.div
                                             style={{
-                                                marginTop: '8px',
+                                                position: 'absolute',
+                                                top: '20px',
+                                                left: '-80px',
                                                 background: '#6366f1',
                                                 color: 'white',
-                                                padding: '5px 10px',
+                                                padding: '5px 12px',
                                                 borderRadius: '6px',
                                                 fontSize: '10px',
                                                 fontWeight: 700,
-                                                textAlign: 'center',
-                                                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
-                                                border: '1px dashed rgba(255,255,255,0.3)'
+                                                whiteSpace: 'nowrap',
+                                                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)'
+                                            }}
+                                            animate={{ opacity: [0.8, 1, 0.8] }}
+                                            transition={{ duration: 1.5, repeat: Infinity }}
+                                        >
+                                            1. Request URL
+                                        </motion.div>
+                                    </div>
+
+                                    {/* Arrow 5: Originates from bottom-right of User Client, goes to S3 */}
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: '-70px',
+                                        right: '-60px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center'
+                                    }}>
+                                        <motion.div
+                                            style={{
+                                                width: '3px',
+                                                height: '70px',
+                                                background: 'linear-gradient(180deg, #22c55e, #22c55e)',
+                                                borderRadius: '2px',
+                                                position: 'relative',
+                                                boxShadow: '0 0 10px rgba(34, 197, 94, 0.6)'
                                             }}
                                             animate={{ opacity: [0.7, 1, 0.7] }}
-                                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
+                                            transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
                                         >
-                                            4. URL Returned
+                                            {/* Arrow head at bottom */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: '-10px',
+                                                left: '50%',
+                                                transform: 'translateX(-50%)',
+                                                width: 0,
+                                                height: 0,
+                                                borderLeft: '8px solid transparent',
+                                                borderRight: '8px solid transparent',
+                                                borderTop: '12px solid #22c55e',
+                                                filter: 'drop-shadow(0 0 4px #22c55e)'
+                                            }} />
+                                            {/* Flowing dot */}
+                                            <motion.div
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: '-4px',
+                                                    width: '10px',
+                                                    height: '10px',
+                                                    borderRadius: '50%',
+                                                    background: '#22c55e',
+                                                    boxShadow: '0 0 12px #22c55e'
+                                                }}
+                                                animate={{ top: ['0%', '100%'] }}
+                                                transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.5 }}
+                                            />
+                                        </motion.div>
+                                        {/* Label */}
+                                        <motion.div
+                                            style={{
+                                                position: 'absolute',
+                                                top: '20px',
+                                                right: '-100px',
+                                                background: '#22c55e',
+                                                color: 'white',
+                                                padding: '5px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '10px',
+                                                fontWeight: 700,
+                                                whiteSpace: 'nowrap',
+                                                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.4)'
+                                            }}
+                                            animate={{ opacity: [0.8, 1, 0.8] }}
+                                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}
+                                        >
+                                            5. {activeTab === 'upload' ? 'Direct Upload' : 'Direct Download'}
                                         </motion.div>
                                     </div>
                                 </div>
 
-                                {/* Right: AWS Cloud Services Group */}
+                                {/* Main row: EC2 Group, Middle Arrows, AWS Cloud Group */}
                                 <div style={{
-                                    border: '2px dashed #f59e0b',
-                                    borderRadius: '20px',
-                                    padding: '24px',
-                                    background: 'rgba(245, 158, 11, 0.05)',
-                                    position: 'relative',
-                                    flex: '0 0 220px'
+                                    display: 'flex',
+                                    alignItems: 'stretch',
+                                    gap: '30px',
+                                    justifyContent: 'center',
+                                    width: '100%',
+                                    maxWidth: '900px'
                                 }}>
-                                    <span style={{
-                                        position: 'absolute',
-                                        top: '-12px',
-                                        left: '20px',
-                                        background: '#f59e0b',
-                                        color: 'white',
-                                        padding: '4px 12px',
-                                        borderRadius: '6px',
-                                        fontSize: '11px',
-                                        fontWeight: 700
+                                    {/* Left: AWS EC2 Group */}
+                                    <div style={{
+                                        border: '2px dashed #6366f1',
+                                        borderRadius: '20px',
+                                        padding: '24px',
+                                        background: 'rgba(99, 102, 241, 0.05)',
+                                        position: 'relative',
+                                        flex: '0 0 220px'
                                     }}>
-                                        AWS Cloud Services
-                                    </span>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
-                                        <Node
-                                            icon={HardDrive}
-                                            title="S3 Bucket"
-                                            subTitle="Object Storage"
-                                            desc="Direct file transfer"
-                                            color="#f59e0b"
-                                        />
-                                        <Node
-                                            icon={Database}
-                                            title="PostgreSQL"
-                                            subTitle="AWS RDS"
-                                            desc="Metadata & Analytics"
-                                            color="#3b82f6"
-                                        />
+                                        <span style={{
+                                            position: 'absolute',
+                                            top: '-12px',
+                                            left: '20px',
+                                            background: '#6366f1',
+                                            color: 'white',
+                                            padding: '4px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 700
+                                        }}>
+                                            AWS EC2 Instance
+                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                                            <Node
+                                                icon={Server}
+                                                title="Go Backend"
+                                                subTitle="API Server"
+                                                desc={activeTab === 'upload' ? 'Presigned URLs (5-min)' : 'Presigned URLs (configurable)'}
+                                                color="#6366f1"
+                                            />
+                                            <Node
+                                                icon={Globe}
+                                                title="React Frontend"
+                                                subTitle="NGINX"
+                                                desc="Static assets"
+                                                color="#22c55e"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Center: Arrows between Backend and AWS Services */}
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'flex-start',
+                                        gap: '20px',
+                                        paddingTop: '50px',
+                                        flex: '0 0 180px'
+                                    }}>
+                                        {/* Arrow 2: Get Presigned URL */}
+                                        <div style={{ position: 'relative' }}>
+                                            <motion.div
+                                                style={{
+                                                    height: '3px',
+                                                    background: 'linear-gradient(90deg, #f59e0b 0%, #f59e0b 40%, #f59e0b40 100%)',
+                                                    borderRadius: '2px',
+                                                    position: 'relative',
+                                                    boxShadow: '0 0 8px rgba(245, 158, 11, 0.5)'
+                                                }}
+                                                animate={{ opacity: [0.6, 1, 0.6] }}
+                                                transition={{ duration: 2, repeat: Infinity, delay: 0.2 }}
+                                            >
+                                                {/* Arrow head */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    right: '-6px',
+                                                    top: '-5px',
+                                                    width: 0,
+                                                    height: 0,
+                                                    borderTop: '7px solid transparent',
+                                                    borderBottom: '7px solid transparent',
+                                                    borderLeft: '10px solid #f59e0b'
+                                                }} />
+                                                {/* Flowing dot */}
+                                                <motion.div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        width: '10px',
+                                                        height: '10px',
+                                                        borderRadius: '50%',
+                                                        background: '#f59e0b',
+                                                        boxShadow: '0 0 12px #f59e0b',
+                                                        top: '-4px'
+                                                    }}
+                                                    animate={{ left: ['0%', '100%'] }}
+                                                    transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.2 }}
+                                                />
+                                            </motion.div>
+                                            <motion.div
+                                                style={{
+                                                    marginTop: '8px',
+                                                    background: '#f59e0b',
+                                                    color: 'white',
+                                                    padding: '5px 10px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 700,
+                                                    textAlign: 'center',
+                                                    boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)'
+                                                }}
+                                                animate={{ opacity: [0.8, 1, 0.8] }}
+                                                transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
+                                            >
+                                                2. Get Presigned URL
+                                            </motion.div>
+                                        </div>
+
+                                        {/* Arrow 3: Store Metadata */}
+                                        <div style={{ position: 'relative' }}>
+                                            <motion.div
+                                                style={{
+                                                    height: '3px',
+                                                    background: 'linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #3b82f640 100%)',
+                                                    borderRadius: '2px',
+                                                    position: 'relative',
+                                                    boxShadow: '0 0 8px rgba(59, 130, 246, 0.5)'
+                                                }}
+                                                animate={{ opacity: [0.6, 1, 0.6] }}
+                                                transition={{ duration: 2, repeat: Infinity, delay: 0.4 }}
+                                            >
+                                                {/* Arrow head */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    right: '-6px',
+                                                    top: '-5px',
+                                                    width: 0,
+                                                    height: 0,
+                                                    borderTop: '7px solid transparent',
+                                                    borderBottom: '7px solid transparent',
+                                                    borderLeft: '10px solid #3b82f6'
+                                                }} />
+                                                {/* Flowing dot */}
+                                                <motion.div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        width: '10px',
+                                                        height: '10px',
+                                                        borderRadius: '50%',
+                                                        background: '#3b82f6',
+                                                        boxShadow: '0 0 12px #3b82f6',
+                                                        top: '-4px'
+                                                    }}
+                                                    animate={{ left: ['0%', '100%'] }}
+                                                    transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.4 }}
+                                                />
+                                            </motion.div>
+                                            <motion.div
+                                                style={{
+                                                    marginTop: '8px',
+                                                    background: '#3b82f6',
+                                                    color: 'white',
+                                                    padding: '5px 10px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 700,
+                                                    textAlign: 'center',
+                                                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.4)'
+                                                }}
+                                                animate={{ opacity: [0.8, 1, 0.8] }}
+                                                transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
+                                            >
+                                                3. Store Metadata
+                                            </motion.div>
+                                        </div>
+
+                                        {/* Arrow 4: URL Returned (now in the same area as arrows 2 and 3) */}
+                                        <div style={{ position: 'relative' }}>
+                                            <motion.div
+                                                style={{
+                                                    height: '3px',
+                                                    background: 'linear-gradient(270deg, #6366f1 0%, #6366f1 40%, #6366f140 100%)',
+                                                    borderRadius: '2px',
+                                                    position: 'relative',
+                                                    boxShadow: '0 0 8px rgba(99, 102, 241, 0.5)'
+                                                }}
+                                                animate={{ opacity: [0.6, 1, 0.6] }}
+                                                transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
+                                            >
+                                                {/* Arrow head - pointing left */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    left: '-6px',
+                                                    top: '-5px',
+                                                    width: 0,
+                                                    height: 0,
+                                                    borderTop: '7px solid transparent',
+                                                    borderBottom: '7px solid transparent',
+                                                    borderRight: '10px solid #6366f1'
+                                                }} />
+                                                {/* Flowing dot */}
+                                                <motion.div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        width: '10px',
+                                                        height: '10px',
+                                                        borderRadius: '50%',
+                                                        background: '#6366f1',
+                                                        boxShadow: '0 0 12px #6366f1',
+                                                        top: '-4px'
+                                                    }}
+                                                    animate={{ right: ['0%', '100%'] }}
+                                                    transition={{ duration: 1, repeat: Infinity, ease: 'linear', delay: 0.6 }}
+                                                />
+                                            </motion.div>
+                                            <motion.div
+                                                style={{
+                                                    marginTop: '8px',
+                                                    background: '#6366f1',
+                                                    color: 'white',
+                                                    padding: '5px 10px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 700,
+                                                    textAlign: 'center',
+                                                    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
+                                                    border: '1px dashed rgba(255,255,255,0.3)'
+                                                }}
+                                                animate={{ opacity: [0.7, 1, 0.7] }}
+                                                transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
+                                            >
+                                                4. URL Returned
+                                            </motion.div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right: AWS Cloud Services Group */}
+                                    <div style={{
+                                        border: '2px dashed #f59e0b',
+                                        borderRadius: '20px',
+                                        padding: '24px',
+                                        background: 'rgba(245, 158, 11, 0.05)',
+                                        position: 'relative',
+                                        flex: '0 0 220px'
+                                    }}>
+                                        <span style={{
+                                            position: 'absolute',
+                                            top: '-12px',
+                                            left: '20px',
+                                            background: '#f59e0b',
+                                            color: 'white',
+                                            padding: '4px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '11px',
+                                            fontWeight: 700
+                                        }}>
+                                            AWS Cloud Services
+                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}>
+                                            <Node
+                                                icon={HardDrive}
+                                                title="S3 Bucket"
+                                                subTitle="Object Storage"
+                                                desc="Direct file transfer"
+                                                color="#f59e0b"
+                                            />
+                                            <Node
+                                                icon={Database}
+                                                title="PostgreSQL"
+                                                subTitle="AWS RDS"
+                                                desc="Metadata & Analytics"
+                                                color="#3b82f6"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Flow Steps */}
@@ -1000,38 +1019,45 @@ const About = () => {
                                 <>
                                     <FlowStep
                                         number="1"
-                                        title="Request Download URL"
-                                        description="User clicks download on the React frontend, which sends a request to the Go backend (AWS EC2) to generate a presigned download URL."
-                                        icon={Smartphone}
-                                        color="#e879f9"
+                                        title="Client Request via Load Balancer"
+                                        description="User clicks download. The request goes through AWS Elastic Load Balancer which distributes traffic to healthy EC2 instances."
+                                        icon={Globe}
+                                        color="#a855f7"
                                     />
                                     <FlowStep
                                         number="2"
-                                        title="Backend Contacts AWS S3"
-                                        description="Go backend verifies transfer status, then communicates with AWS S3 to create a presigned download URL with configurable expiry time."
-                                        icon={HardDrive}
-                                        color="#f59e0b"
+                                        title="EC2 Backend Processes Request"
+                                        description="Go backend on EC2 receives the request, verifies transfer status, and generates a presigned download URL from AWS S3."
+                                        icon={Server}
+                                        color="#f97316"
                                     />
                                     <FlowStep
                                         number="3"
-                                        title="Update Metadata in PostgreSQL"
-                                        description="Download count is incremented and access is logged in PostgreSQL RDS for analytics and tracking."
+                                        title="Metadata Query to RDS"
+                                        description="Backend queries AWS RDS PostgreSQL for file metadata and updates download count for analytics."
                                         icon={Database}
                                         color="#3b82f6"
                                     />
                                     <FlowStep
                                         number="4"
-                                        title="URL Returned to Client"
-                                        description="The presigned download URL is returned to the frontend client."
-                                        icon={ArrowRight}
-                                        color="#6366f1"
+                                        title="Publish Notification to SNS"
+                                        description="Backend publishes a download event to AWS SNS topic for asynchronous notification processing."
+                                        icon={Network}
+                                        color="#ec4899"
                                     />
                                     <FlowStep
-                                        number="5"
-                                        title="Client Downloads Directly from S3"
-                                        description="The browser downloads the file directly from AWS S3 using the presigned URL via HTTPS. No backend involvement for the file transfer."
-                                        icon={FileDown}
+                                        number="5a/5b"
+                                        title="SNS to SQS & Direct Download"
+                                        description="SNS fans out the message to SQS queue while client downloads file directly from S3 using presigned URL."
+                                        icon={HardDrive}
                                         color="#22c55e"
+                                    />
+                                    <FlowStep
+                                        number="6-7"
+                                        title="Lambda Processes & Sends Email"
+                                        description="AWS Lambda is triggered by SQS, processes the event, and invokes AWS SES to send email notification to file owner."
+                                        icon={Mail}
+                                        color="#ef4444"
                                     />
                                 </>
                             )}
@@ -1057,12 +1083,12 @@ const About = () => {
                                     { icon: Globe, text: 'Secure HTTPS transfer via AWS', color: '#e879f9' },
                                     { icon: CheckCircle, text: 'Scalable cloud architecture', color: '#22c55e' }
                                 ] : [
-                                    { icon: Settings, text: 'Download URL expiry is configurable', color: '#f59e0b' },
+                                    { icon: Globe, text: 'Elastic Load Balancer for high availability', color: '#a855f7' },
                                     { icon: HardDrive, text: 'Direct S3 download bypasses server', color: '#22c55e' },
-                                    { icon: Server, text: 'Frontend & Backend on AWS EC2', color: '#6366f1' },
-                                    { icon: Database, text: 'Download analytics in PostgreSQL', color: '#3b82f6' },
-                                    { icon: Globe, text: 'Secure HTTPS transfer via AWS', color: '#e879f9' },
-                                    { icon: CheckCircle, text: 'Scalable cloud architecture', color: '#22c55e' }
+                                    { icon: Network, text: 'Event-driven architecture with SNS & SQS', color: '#ec4899' },
+                                    { icon: Server, text: 'Serverless notifications with Lambda', color: '#f59e0b' },
+                                    { icon: Mail, text: 'Email notifications via AWS SES', color: '#ef4444' },
+                                    { icon: Database, text: 'Download analytics in PostgreSQL RDS', color: '#3b82f6' }
                                 ]).map((benefit, i) => (
                                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <benefit.icon size={16} style={{ color: benefit.color, flexShrink: 0 }} />
