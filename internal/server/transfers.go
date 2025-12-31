@@ -39,13 +39,17 @@ type createTransferResponse struct {
 }
 
 type transferResponse struct {
-	ID            string    `json:"id"`
-	Status        string    `json:"status"`
-	ExpiresAt     time.Time `json:"expires_at"`
-	DownloadCount int       `json:"download_count"`
-	MaxDownloads  int       `json:"max_downloads"`
-	ObjectKey     *string   `json:"object_key"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            string     `json:"id"`
+	Status        string     `json:"status"`
+	ExpiresAt     time.Time  `json:"expires_at"`
+	DownloadCount int        `json:"download_count"`
+	MaxDownloads  int        `json:"max_downloads"`
+	ObjectKey     *string    `json:"-"`
+	CreatedAt     time.Time  `json:"created_at"`
+	Filename      *string    `json:"filename"`
+	FileType      *string    `json:"file_type"`
+	FileSize      *int64     `json:"file_size"`
+	UploadedAt    *time.Time `json:"uploaded_at"`
 }
 
 type updateTransferRequest struct {
@@ -158,6 +162,9 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		case http.MethodDelete:
 			s.deleteTransferHandler(w, r, id)
+			return
+		case http.MethodOptions:
+			w.Header().Set("Allow", "GET, PATCH, DELETE")
 			return
 		default:
 			w.Header().Set("Allow", "GET, PATCH, DELETE")
@@ -356,14 +363,24 @@ func (s *Server) downloadURLHandler(w http.ResponseWriter, r *http.Request, id s
 		return
 	}
 
-	downloadURL, err := s.s3.PresignGetURL(ctx, bucket, *objectKey, 5*time.Minute)
+	// Parse expiry from query params (default 5 minutes)
+	expiryDuration := 5 * time.Minute
+	if minsStr := r.URL.Query().Get("expiry_minutes"); minsStr != "" {
+		if mins, err := strconv.Atoi(minsStr); err == nil {
+			if mins > 0 && mins <= 10080 { // Max 1 week
+				expiryDuration = time.Duration(mins) * time.Minute
+			}
+		}
+	}
+
+	downloadURL, err := s.s3.PresignGetURL(ctx, bucket, *objectKey, expiryDuration)
 	if err != nil {
 		s.logger.Printf("download: failed to presign get url id=%s key=%s: %v", id, *objectKey, err)
 		http.Error(w, "failed to presign download url", http.StatusInternalServerError)
 		return
 	}
 
-	s.logger.Printf("download url generated id=%s key=%s", id, *objectKey)
+	s.logger.Printf("download url generated id=%s key=%s expiry=%s", id, *objectKey, expiryDuration)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -376,7 +393,8 @@ func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id stri
 
 	var status string
 	var expiresAt time.Time
-	err := s.db.QueryRow(ctx, `SELECT status, expires_at FROM transfers WHERE id=$1`, id).Scan(&status, &expiresAt)
+	var objectKey *string
+	err := s.db.QueryRow(ctx, `SELECT status, expires_at, object_key FROM transfers WHERE id=$1`, id).Scan(&status, &expiresAt, &objectKey)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			s.logger.Printf("complete: transfer not found id=%s", id)
@@ -405,8 +423,38 @@ func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id stri
 		return
 	}
 
-	// perform strict update: only set to READY if currently INIT
-	tag, err := s.db.Exec(ctx, `UPDATE transfers SET status=$1 WHERE id=$2 AND status=$3`, "READY", id, "INIT")
+	if objectKey == nil || *objectKey == "" {
+		s.logger.Printf("complete: missing object_key id=%s", id)
+		http.Error(w, "upload not started", http.StatusBadRequest)
+		return
+	}
+
+	bucket := os.Getenv("S3_BUCKET")
+	if bucket == "" {
+		s.logger.Printf("complete: s3 bucket not configured")
+		http.Error(w, "configuration error", http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch S3 metadata
+	size, contentType, err := s.s3.HeadObject(ctx, bucket, *objectKey)
+	if err != nil {
+		s.logger.Printf("complete: failed to head object id=%s key=%s: %v", id, *objectKey, err)
+		// Do NOT mark as READY if S3 object is missing or inaccessible
+		http.Error(w, "upload validation failed", http.StatusBadGateway)
+		return
+	}
+
+	// Extract filename from object_key (uploads/{id}/{filename})
+	parts := strings.Split(*objectKey, "/")
+	filename := parts[len(parts)-1]
+
+	// perform strict update: only set to READY and update metadata if currently INIT
+	tag, err := s.db.Exec(ctx, `
+		UPDATE transfers 
+		SET status=$1, filename=$2, file_type=$3, file_size=$4, uploaded_at=NOW() 
+		WHERE id=$5 AND status=$6`,
+		"READY", filename, contentType, size, id, "INIT")
 	if err != nil {
 		s.logger.Printf("complete: failed to update transfer id=%s: %v", id, err)
 		http.Error(w, "failed to update transfer", http.StatusInternalServerError)
@@ -420,23 +468,27 @@ func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id stri
 		return
 	}
 
-	s.logger.Printf("transfer marked READY id=%s", id)
+	s.logger.Printf("transfer marked READY id=%s filename=%q size=%d type=%s", id, filename, size, contentType)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "READY"})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":        id,
+		"status":    "READY",
+		"file_size": size,
+		"file_type": contentType,
+		"filename":  filename,
+	})
 }
 
 func (s *Server) getTransferHandler(w http.ResponseWriter, r *http.Request, id string) {
 	ctx := r.Context()
 	var t transferResponse
-	err := s.db.QueryRow(ctx, `SELECT id, status, expires_at, download_count, max_downloads, object_key, created_at FROM transfers WHERE id=$1`, id).
-		Scan(&t.ID, &t.Status, &t.ExpiresAt, &t.DownloadCount, &t.MaxDownloads, &t.ObjectKey, &t.CreatedAt)
+	err := s.db.QueryRow(ctx, `
+		SELECT id, status, expires_at, download_count, max_downloads, object_key, created_at, filename, file_type, file_size, uploaded_at 
+		FROM transfers WHERE id=$1`, id).
+		Scan(&t.ID, &t.Status, &t.ExpiresAt, &t.DownloadCount, &t.MaxDownloads, &t.ObjectKey, &t.CreatedAt, &t.Filename, &t.FileType, &t.FileSize, &t.UploadedAt)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			http.NotFound(w, r)
-			return
-		}
 		if err == pgx.ErrNoRows {
 			http.NotFound(w, r)
 			return
@@ -447,13 +499,11 @@ func (s *Server) getTransferHandler(w http.ResponseWriter, r *http.Request, id s
 	}
 
 	if isExpired(t.ExpiresAt) {
-		if t.Status != "EXPIRED" {
+		if t.Status != "EXPIRED" && t.Status != "DELETED" {
 			_, _ = s.db.Exec(ctx, `UPDATE transfers SET status='EXPIRED' WHERE id=$1`, id)
+			t.Status = "EXPIRED"
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusGone)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "transfer_expired"})
-		return
+		// We proceed to return the transfer details so the user can see them (and potentially revive it)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -504,8 +554,8 @@ func (s *Server) updateTransferHandler(w http.ResponseWriter, r *http.Request, i
 	}
 	if req.Status != nil {
 		st := *req.Status
-		if st != "EXPIRED" {
-			http.Error(w, "status can only be updated to 'EXPIRED'", http.StatusBadRequest)
+		if st != "EXPIRED" && st != "READY" {
+			http.Error(w, "status can only be updated to 'EXPIRED' or 'READY'", http.StatusBadRequest)
 			return
 		}
 	}
@@ -622,9 +672,10 @@ func (s *Server) triggerDeleteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type listTransfersResponse struct {
-	Items  []transferResponse `json:"items"`
-	Limit  int                `json:"limit"`
-	Offset int                `json:"offset"`
+	Items      []transferResponse `json:"items"`
+	Limit      int                `json:"limit"`
+	Offset     int                `json:"offset"`
+	TotalCount int                `json:"total_count"`
 }
 
 func (s *Server) listTransfersHandler(w http.ResponseWriter, r *http.Request) {
@@ -658,24 +709,62 @@ func (s *Server) listTransfersHandler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Printf("listing transfers status=%s limit=%d offset=%d", statusFilter, limitVal, offsetVal)
 
 	ctx := r.Context()
-	var sqlStr strings.Builder
-	var args []interface{}
-	idx := 1
 
-	sqlStr.WriteString(`SELECT id, status, expires_at, download_count, max_downloads, created_at FROM transfers`)
-
+	// Count total
+	var totalCount int
 	if statusFilter != "" {
-		sqlStr.WriteString(fmt.Sprintf(" WHERE status=$%d", idx))
-		args = append(args, statusFilter)
-		idx++
+		err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM transfers WHERE status=$1", statusFilter).Scan(&totalCount)
+		if err != nil {
+			s.logger.Printf("list: failed to count transfers: %v", err)
+			http.Error(w, "failed to list transfers", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		err := s.db.QueryRow(ctx, "SELECT COUNT(*) FROM transfers").Scan(&totalCount)
+		if err != nil {
+			s.logger.Printf("list: failed to count transfers: %v", err)
+			http.Error(w, "failed to list transfers", http.StatusInternalServerError)
+			return
+		}
 	}
 
-	sqlStr.WriteString(" ORDER BY created_at DESC")
+	// Build SELECT query
+	var sqlStr strings.Builder
+	var selectArgs []interface{}
+	selectIdx := 1
 
-	sqlStr.WriteString(fmt.Sprintf(" LIMIT $%d OFFSET $%d", idx, idx+1))
-	args = append(args, limitVal, offsetVal)
+	sqlStr.WriteString(`
+		SELECT id, status, expires_at, download_count, max_downloads, created_at, filename, file_type, file_size, uploaded_at 
+		FROM transfers`)
 
-	rows, err := s.db.Query(ctx, sqlStr.String(), args...)
+	if statusFilter != "" {
+		sqlStr.WriteString(fmt.Sprintf(" WHERE status=$%d", selectIdx))
+		selectArgs = append(selectArgs, statusFilter)
+		selectIdx++
+	}
+
+	// Sorting
+	sortBy := query.Get("sort_by")
+	sortOrder := strings.ToUpper(query.Get("order"))
+	if sortOrder != "ASC" {
+		sortOrder = "DESC"
+	}
+
+	switch sortBy {
+	case "expires_at":
+		sqlStr.WriteString(fmt.Sprintf(" ORDER BY expires_at %s", sortOrder))
+	case "max_downloads":
+		sqlStr.WriteString(fmt.Sprintf(" ORDER BY max_downloads %s", sortOrder))
+	case "file_size":
+		sqlStr.WriteString(fmt.Sprintf(" ORDER BY file_size %s", sortOrder))
+	default:
+		sqlStr.WriteString(fmt.Sprintf(" ORDER BY created_at %s", sortOrder))
+	}
+
+	sqlStr.WriteString(fmt.Sprintf(" LIMIT $%d OFFSET $%d", selectIdx, selectIdx+1))
+	selectArgs = append(selectArgs, limitVal, offsetVal)
+
+	rows, err := s.db.Query(ctx, sqlStr.String(), selectArgs...)
 	if err != nil {
 		s.logger.Printf("list: failed to query transfers: %v", err)
 		http.Error(w, "failed to list transfers", http.StatusInternalServerError)
@@ -686,8 +775,8 @@ func (s *Server) listTransfersHandler(w http.ResponseWriter, r *http.Request) {
 	items := []transferResponse{}
 	for rows.Next() {
 		var t transferResponse
-		// object_key not selected, so expected to be nil/empty in struct or we just ignore it
-		if err := rows.Scan(&t.ID, &t.Status, &t.ExpiresAt, &t.DownloadCount, &t.MaxDownloads, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Status, &t.ExpiresAt, &t.DownloadCount, &t.MaxDownloads, &t.CreatedAt, &t.Filename, &t.FileType, &t.FileSize, &t.UploadedAt); err != nil {
+			s.logger.Printf("list: failed to scan row: %v", err)
 			continue
 		}
 
@@ -700,15 +789,18 @@ func (s *Server) listTransfersHandler(w http.ResponseWriter, r *http.Request) {
 		items = append(items, t)
 	}
 
+	s.logger.Printf("list: returning %d items (total %d)", len(items), totalCount)
+
 	if items == nil {
 		items = []transferResponse{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(listTransfersResponse{
-		Items:  items,
-		Limit:  limitVal,
-		Offset: offsetVal,
+		Items:      items,
+		Limit:      limitVal,
+		Offset:     offsetVal,
+		TotalCount: totalCount,
 	})
 }
 

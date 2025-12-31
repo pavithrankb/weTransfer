@@ -66,3 +66,27 @@ func (s *S3) DeleteObject(ctx context.Context, bucket, key string) error {
 	})
 	return err
 }
+
+// HeadObject retrieves metadata for an object from S3.
+// Returns size (ContentLength) and contentType (ContentType).
+func (s *S3) HeadObject(ctx context.Context, bucket, key string) (int64, string, error) {
+	output, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return 0, "", err
+	}
+
+	size := int64(0)
+	if output.ContentLength != nil {
+		size = *output.ContentLength
+	}
+
+	contentType := ""
+	if output.ContentType != nil {
+		contentType = *output.ContentType
+	}
+
+	return size, contentType, nil
+}
