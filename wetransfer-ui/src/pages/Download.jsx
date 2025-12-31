@@ -455,6 +455,69 @@ const Download = () => {
                                     </div>
                                 </div>
                             )
+                        ) : transfer.status === 'EXPIRED' ? (
+                            /* Revival UI for expired transfers */
+                            <div style={{ marginTop: '24px', padding: '24px', background: 'var(--input-bg)', borderRadius: '16px', border: '1px solid var(--color-border)' }}>
+                                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                                    <div style={{
+                                        width: '56px',
+                                        height: '56px',
+                                        background: 'rgba(251, 146, 60, 0.15)',
+                                        borderRadius: '50%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        margin: '0 auto 12px',
+                                        color: '#f97316'
+                                    }}>
+                                        <AlertCircle size={28} />
+                                    </div>
+                                    <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-main)', marginBottom: '4px' }}>Transfer Expired</h3>
+                                    <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>Set a new expiry date to revive this transfer.</p>
+                                </div>
+
+                                <div style={{ marginBottom: '16px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '8px' }}>
+                                        <Calendar size={14} /> Revive Until
+                                    </label>
+                                    <input
+                                        type="datetime-local"
+                                        value={editForm.expires_at}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, expires_at: e.target.value }))}
+                                        min={new Date().toISOString().slice(0, 16)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px',
+                                            borderRadius: '10px',
+                                            border: '1px solid var(--color-border)',
+                                            background: 'var(--color-surface)',
+                                            color: 'var(--color-text-main)',
+                                            fontSize: '14px'
+                                        }}
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleRevive}
+                                    style={{
+                                        width: '100%',
+                                        padding: '14px',
+                                        background: '#22c55e',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        fontSize: '15px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    <RefreshCw size={18} /> Revive Transfer
+                                </button>
+                            </div>
                         ) : (
                             <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-secondary)' }}>
                                 This transfer is no longer available. Status: {transfer.status}
