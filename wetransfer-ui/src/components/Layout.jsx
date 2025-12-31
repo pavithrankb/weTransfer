@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { Moon, Sun, Info, Cloud, LayoutGrid, X, Pencil, Trash2, ArrowUpRight, RotateCw, Loader, FileText, Download, Calendar, HardDrive, Filter, ArrowUpDown, ChevronDown, Timer, RefreshCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ArchitectureModal from './ArchitectureModal';
 import ConfirmModal from './ConfirmModal';
 import { listTransfers, deleteTransfer, updateTransfer } from '../services/api';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const Layout = ({ children }) => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-    const [showInfo, setShowInfo] = useState(false);
     const [showTransfers, setShowTransfers] = useState(false);
 
     // Transfers state
@@ -120,8 +118,6 @@ const Layout = ({ children }) => {
     return (
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background)', color: 'var(--color-text-main)' }}>
 
-            <ArchitectureModal isOpen={showInfo} onClose={() => setShowInfo(false)} />
-
             <ConfirmModal
                 isOpen={deleteModal.isOpen}
                 title="Delete Transfer"
@@ -191,19 +187,20 @@ const Layout = ({ children }) => {
                         Dashboard
                     </motion.button>
 
-                    <button
-                        onClick={() => setShowInfo(true)}
+                    <Link
+                        to="/about"
                         style={{
                             background: 'var(--input-bg)',
                             border: '1px solid var(--color-border)',
                             borderRadius: '12px', width: '42px', height: '42px',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', color: 'var(--color-text-main)'
+                            cursor: 'pointer', color: 'var(--color-text-main)',
+                            textDecoration: 'none'
                         }}
-                        title="System Architecture"
+                        title="System Architecture & About"
                     >
                         <Info size={18} />
-                    </button>
+                    </Link>
 
                     <button
                         onClick={toggleTheme}
