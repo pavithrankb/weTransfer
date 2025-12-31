@@ -451,7 +451,7 @@ const About = () => {
                                 a Go backend for API handling, and a React frontend for a seamless user experience.
                             </p>
                             <div style={{ marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                                {['React', 'Go', 'AWS S3', 'AWS RDS (PostgreSQL)', 'AWS EC2', 'AWS SNS', 'AWS SQS', 'AWS SES', 'AWS IAM', 'Presigned URLs'].map(tech => (
+                                {['Go', 'AWS S3', 'AWS Lambda', 'AWS ELB', 'AWS RDS (PostgreSQL)', 'AWS EC2', 'AWS SNS', 'AWS SQS', 'AWS SES', 'AWS IAM', 'Presigned URLs'].map(tech => (
                                     <span key={tech} style={{
                                         padding: '8px 14px',
                                         background: 'var(--color-primary-light)',

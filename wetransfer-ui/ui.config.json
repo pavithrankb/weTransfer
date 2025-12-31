@@ -1,0 +1,10 @@
+{
+    "frontend": {
+        "port": 31443
+    },
+    "backend": {
+        "host": "localhost",
+        "port": 8080,
+        "protocol": "http"
+    }
+}
