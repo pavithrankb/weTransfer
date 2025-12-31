@@ -14,16 +14,18 @@ type Server struct {
 	port   int
 	db     *pgxpool.Pool
 	s3     *storage.S3
+	sns    *storage.SNS
 	logger *log.Logger
 	debug  bool
 }
 
-func NewServer(db *pgxpool.Pool, s3h *storage.S3, logger *log.Logger, debug bool) *Server {
+func NewServer(db *pgxpool.Pool, s3h *storage.S3, snsh *storage.SNS, logger *log.Logger, debug bool) *Server {
 	port := 8080
 	s := &Server{
 		port:   port,
 		db:     db,
 		s3:     s3h,
+		sns:    snsh,
 		logger: logger,
 		debug:  debug,
 	}

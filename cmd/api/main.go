@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pavithrankb/weTransfer/internal/server"
 	"github.com/pavithrankb/weTransfer/internal/storage"
+	"github.com/pavithrankb/weTransfer/internal/worker"
 )
 
 func main() {
@@ -54,7 +55,18 @@ func main() {
 		logger.Panicf("unable to initialize s3 helper: %s", err)
 	}
 
-	srv := server.NewServer(pool, s3h, logger, *debugMode)
+	// initialize SNS helper (optional - if SNS_TOPIC_ARN is not set, email sharing will not work)
+	var snsh *storage.SNS
+	if os.Getenv("SNS_TOPIC_ARN") != "" {
+		snsh, err = storage.NewSNS(ctx)
+		if err != nil {
+			logger.Printf("warning: unable to initialize sns helper: %s (email sharing disabled)", err)
+		}
+	} else {
+		logger.Println("warning: SNS_TOPIC_ARN not set, email sharing disabled")
+	}
+
+	srv := server.NewServer(pool, s3h, snsh, logger, *debugMode)
 
 	// background cleanup job
 	go func() {
@@ -67,6 +79,9 @@ func main() {
 			srv.RunCleanup()
 		}
 	}()
+
+	// start email worker
+	go worker.StartEmailWorker(ctx, logger)
 
 	logger.Println("Server listening on port 8080...")
 	if err := srv.ListenAndServe(); err != nil {

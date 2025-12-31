@@ -65,3 +65,8 @@ export const updateTransfer = (id, data) => {
     // Backend expects trailing slash for single object operations on root /{id}/
     return api.patch(`${BASE_PATH}/${id}/`, data);
 };
+
+// TODO: Replace direct S3 URLs with application-level download links
+export const shareDownload = (id, emails) => {
+    return api.post(`${BASE_PATH}/${id}/share-download`, { emails });
+};

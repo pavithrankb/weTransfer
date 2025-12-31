@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/pavithrankb/weTransfer/internal/storage"
 )
 
 func (s *Server) transfersRootHandler(w http.ResponseWriter, r *http.Request) {
@@ -171,6 +172,15 @@ func (s *Server) transfersSubHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+	} else if action == "share-download" {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			s.logger.Printf("method not allowed for share-download: %s %s", r.Method, r.URL.Path)
+			return
+		}
+		s.shareDownloadHandler(w, r, id)
+		return
 	} else if action != "upload-url" && action != "complete" {
 		http.NotFound(w, r)
 		return
@@ -387,6 +397,155 @@ func (s *Server) downloadURLHandler(w http.ResponseWriter, r *http.Request, id s
 	_ = json.NewEncoder(w).Encode(downloadURLResponse{DownloadURL: downloadURL})
 }
 
+type shareDownloadRequest struct {
+	Emails []string `json:"emails"`
+}
+
+// shareDownloadHandler shares the download link via email by publishing to SNS
+// POST /transfers/{id}/share-download
+func (s *Server) shareDownloadHandler(w http.ResponseWriter, r *http.Request, id string) {
+	ctx := r.Context()
+
+	// Check if SNS is configured
+	if s.sns == nil {
+		s.logger.Printf("share-download: SNS not configured")
+		http.Error(w, "email sharing is not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	snsTopicARN := os.Getenv("SNS_TOPIC_ARN")
+	if snsTopicARN == "" {
+		s.logger.Printf("share-download: SNS_TOPIC_ARN not set")
+		http.Error(w, "email sharing is not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse request
+	var req shareDownloadRequest
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		s.logger.Printf("share-download: invalid body: %v", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate emails
+	if len(req.Emails) == 0 {
+		http.Error(w, "at least one email is required", http.StatusBadRequest)
+		return
+	}
+
+	// Basic email validation
+	for _, email := range req.Emails {
+		if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+			http.Error(w, "invalid email format", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Fetch transfer details
+	var status string
+	var expiresAt time.Time
+	var objectKey *string
+	var filename *string
+	var fileSize *int64
+
+	err := s.db.QueryRow(ctx, `
+		SELECT status, expires_at, object_key, filename, file_size 
+		FROM transfers WHERE id=$1`, id).
+		Scan(&status, &expiresAt, &objectKey, &filename, &fileSize)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			s.logger.Printf("share-download: transfer not found id=%s", id)
+			http.Error(w, "transfer not found", http.StatusNotFound)
+			return
+		}
+		s.logger.Printf("share-download: failed to fetch transfer id=%s: %v", id, err)
+		http.Error(w, "failed to fetch transfer", http.StatusInternalServerError)
+		return
+	}
+
+	// Validate transfer state
+	if isExpired(expiresAt) {
+		if status != "EXPIRED" {
+			_, _ = s.db.Exec(ctx, `UPDATE transfers SET status='EXPIRED' WHERE id=$1`, id)
+		}
+		s.logger.Printf("share-download: transfer expired id=%s", id)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusGone)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "transfer_expired"})
+		return
+	}
+
+	if status != "READY" {
+		s.logger.Printf("share-download: transfer not READY id=%s status=%s", id, status)
+		http.Error(w, "transfer not ready", http.StatusBadRequest)
+		return
+	}
+
+	if objectKey == nil || strings.TrimSpace(*objectKey) == "" {
+		s.logger.Printf("share-download: missing object_key id=%s", id)
+		http.Error(w, "object not available", http.StatusBadRequest)
+		return
+	}
+
+	bucket := os.Getenv("S3_BUCKET")
+	if bucket == "" {
+		s.logger.Printf("share-download: s3 bucket not configured")
+		http.Error(w, "s3 bucket not configured", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate a fresh presigned download URL (1 hour expiry)
+	expiryDuration := 60 * time.Minute
+	downloadURL, err := s.s3.PresignGetURL(ctx, bucket, *objectKey, expiryDuration)
+	if err != nil {
+		s.logger.Printf("share-download: failed to presign get url id=%s key=%s: %v", id, *objectKey, err)
+		http.Error(w, "failed to generate download url", http.StatusInternalServerError)
+		return
+	}
+
+	urlExpiresAt := time.Now().UTC().Add(expiryDuration)
+
+	// Prepare file info
+	filenameStr := "Unknown"
+	if filename != nil {
+		filenameStr = *filename
+	}
+	fileSizeVal := int64(0)
+	if fileSize != nil {
+		fileSizeVal = *fileSize
+	}
+
+	// Publish to SNS
+	msg := storage.ShareDownloadMessage{
+		EventType:   "TRANSFER_SHARED",
+		TransferID:  id,
+		Emails:      req.Emails,
+		DownloadURL: downloadURL,
+		ExpiresAt:   urlExpiresAt.Format(time.RFC3339),
+		Filename:    filenameStr,
+		FileSize:    fileSizeVal,
+	}
+
+	go func() {
+		pubCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := s.sns.PublishShareDownload(pubCtx, snsTopicARN, msg); err != nil {
+			s.logger.Printf("share-download: failed to publish to SNS id=%s: %v", id, err)
+		} else {
+			s.logger.Printf("share-download: published to SNS id=%s emails=%v", id, req.Emails)
+		}
+	}()
+
+	s.logger.Printf("share-download: accepted id=%s emails=%v", id, req.Emails)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted"})
+}
+
 // completeHandler marks a transfer as READY after validating state and expiry.
 func (s *Server) completeHandler(w http.ResponseWriter, r *http.Request, id string) {
 	ctx := r.Context()
@@ -503,7 +662,6 @@ func (s *Server) getTransferHandler(w http.ResponseWriter, r *http.Request, id s
 			_, _ = s.db.Exec(ctx, `UPDATE transfers SET status='EXPIRED' WHERE id=$1`, id)
 			t.Status = "EXPIRED"
 		}
-		// We proceed to return the transfer details so the user can see them (and potentially revive it)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

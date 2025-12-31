@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Check, Plus, Loader, Calendar, File, DownloadCloud, Clock, Copy, Shield, Zap, Globe } from 'lucide-react';
-import { createTransfer, getUploadUrl, completeTransfer, getDownloadUrl } from '../services/api';
+import { X, Check, Plus, Loader, Calendar, File, DownloadCloud, Clock, Copy, Shield, Zap, Globe, Mail, Send } from 'lucide-react';
+import { createTransfer, getUploadUrl, completeTransfer, getDownloadUrl, shareDownload } from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 
 // Animated Dot Grid Background with Mouse Interaction
@@ -182,6 +182,12 @@ const Upload = () => {
     const [generatingLink, setGeneratingLink] = useState(false);
     const [copied, setCopied] = useState(false);
 
+    // Email sharing state
+    const [emailInput, setEmailInput] = useState('');
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailSuccess, setEmailSuccess] = useState(false);
+    const [emailError, setEmailError] = useState('');
+
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
@@ -246,6 +252,42 @@ const Upload = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    // Email validation helper
+    const isValidEmail = (email) => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    };
+
+    // Parse and validate email input
+    const getValidEmails = () => {
+        const emails = emailInput
+            .split(',')
+            .map(e => e.trim())
+            .filter(e => e.length > 0);
+        return emails.filter(isValidEmail);
+    };
+
+    const handleSendEmail = async () => {
+        const emails = getValidEmails();
+        if (emails.length === 0) return;
+
+        setSendingEmail(true);
+        setEmailError('');
+        setEmailSuccess(false);
+
+        try {
+            await shareDownload(transferId, emails);
+            setEmailSuccess(true);
+            setEmailInput('');
+            setTimeout(() => setEmailSuccess(false), 3000);
+        } catch (err) {
+            console.error(err);
+            setEmailError('Failed to send email(s). Please try again.');
+            setTimeout(() => setEmailError(''), 5000);
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     const reset = () => {
         setStep('idle');
         setFile(null);
@@ -254,6 +296,9 @@ const Upload = () => {
         setTransferInfo(null);
         setDownloadUrl('');
         setCopied(false);
+        setEmailInput('');
+        setEmailSuccess(false);
+        setEmailError('');
     };
 
     const getExpiryLabel = (mins) => {
@@ -427,6 +472,90 @@ const Upload = () => {
                                 <div style={{ display: 'inline-block', padding: '12px', background: 'white', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
                                     <QRCodeSVG value={downloadUrl} size={100} />
                                 </div>
+                            </div>
+
+                            {/* Share via Email Section */}
+                            <div style={{
+                                background: 'var(--input-bg)',
+                                padding: '16px',
+                                borderRadius: '12px',
+                                border: '1px solid var(--color-border)',
+                                marginBottom: '20px',
+                                textAlign: 'left'
+                            }}>
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '13px',
+                                    fontWeight: 600,
+                                    color: 'var(--color-text-main)',
+                                    marginBottom: '12px'
+                                }}>
+                                    <Mail size={14} />
+                                    Share via Email
+                                </label>
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                                    <input
+                                        type="text"
+                                        value={emailInput}
+                                        onChange={(e) => setEmailInput(e.target.value)}
+                                        placeholder="Enter email(s), comma-separated"
+                                        style={{
+                                            flex: 1,
+                                            margin: 0,
+                                            fontSize: '13px',
+                                            padding: '10px 12px',
+                                            borderRadius: '8px'
+                                        }}
+                                        disabled={sendingEmail}
+                                    />
+                                    <button
+                                        onClick={handleSendEmail}
+                                        disabled={sendingEmail || getValidEmails().length === 0}
+                                        className="btn btn-primary"
+                                        style={{
+                                            padding: '0 16px',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            opacity: (sendingEmail || getValidEmails().length === 0) ? 0.6 : 1
+                                        }}
+                                    >
+                                        {sendingEmail ? (
+                                            <Loader className="spin" size={14} />
+                                        ) : (
+                                            <>
+                                                <Send size={14} />
+                                                Send
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                                {emailSuccess && (
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        color: 'var(--color-success)',
+                                        fontSize: '12px',
+                                        marginTop: '4px'
+                                    }}>
+                                        <Check size={12} />
+                                        Email(s) sent successfully
+                                    </div>
+                                )}
+                                {emailError && (
+                                    <div style={{
+                                        color: 'var(--color-error, #ef4444)',
+                                        fontSize: '12px',
+                                        marginTop: '4px'
+                                    }}>
+                                        {emailError}
+                                    </div>
+                                )}
                             </div>
 
                             <button onClick={reset} className="btn btn-secondary" style={{ width: '100%', height: '44px', fontSize: '14px' }}>
