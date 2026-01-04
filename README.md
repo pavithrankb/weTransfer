@@ -1,4 +1,4 @@
-# SwiftDrop
+# We Transfer
 
 A backend service that enables secure, scalable file transfers using **Go**, **PostgreSQL**, and **AWS S3 presigned URLs**.  
 The backend manages transfer lifecycle and permissions, while file bytes are uploaded and downloaded directly from S3.
@@ -13,6 +13,66 @@ This project demonstrates a WeTransfer-style backend architecture where:
 - File uploads/downloads happen directly between client and S3
 - Transfer lifecycle and permissions are enforced server-side
 - The backend never proxies file bytes
+
+---
+
+## System Architecture
+
+This section provides a visual overview of the file transfer architecture, including both **Upload** and **Download** flows.
+
+### Upload Flow Architecture
+
+![Upload Flow Architecture](upload.design.drawio.svg)
+
+#### Upload Flow Steps
+
+| Step | Title | Description |
+|------|-------|-------------|
+| 1 | **Request Upload URL** | User selects a file and the React frontend sends a request to the Go backend (AWS EC2) to generate a presigned upload URL. |
+| 2 | **Backend Contacts AWS S3** | Go backend communicates with AWS S3 to create a presigned URL valid for 5 minutes. This URL grants temporary, secure upload access. |
+| 3 | **Store Metadata in PostgreSQL** | Transfer metadata (filename, size, expiry, etc.) is stored in PostgreSQL RDS for tracking and management. |
+| 4 | **URL Returned to Client** | The presigned URL is returned to the frontend client, ready for direct upload. |
+| 5/6 | **Client Uploads Directly to S3** | The client automatically uploads the file directly to AWS S3 using the presigned URL via HTTPS. Backend is completely bypassed for the file transfer. |
+
+#### Upload Flow Key Benefits
+
+- ⏱️ Upload URLs expire in 5 minutes
+- 💾 Direct S3 upload bypasses server
+- 🖥️ Frontend & Backend on AWS EC2
+- 🗄️ Metadata stored in PostgreSQL RDS
+- 🌐 Secure HTTPS transfer via AWS
+- ✅ Scalable cloud architecture
+
+---
+
+### Download Flow Architecture
+
+![Download Flow Architecture](download.design.drawio.svg)
+
+#### Download Flow Steps
+
+| Step | Title | Description |
+|------|-------|-------------|
+| 1 | **Client Request via Load Balancer** | User clicks download. The request goes through AWS Elastic Load Balancer which distributes traffic to healthy EC2 instances. |
+| 2 | **EC2 Backend Processes Request** | Go backend on EC2 receives the request, verifies transfer status, and generates a presigned download URL from AWS S3. |
+| 3 | **Metadata Query to RDS** | Backend queries AWS RDS PostgreSQL for file metadata and updates download count for analytics. |
+| 4 | **Publish Notification to SNS** | Backend publishes a download event to AWS SNS topic for asynchronous notification processing. |
+| 5a | **SNS Fans Out to SQS** | SNS receives the download event and fans out the message to the SQS queue for asynchronous processing. |
+| 5b | **Presigned URL Returned to Client** | Meanwhile, the presigned download URL is returned to the client for direct file access. |
+| 6 | **SQS Triggers Lambda** | AWS Lambda is triggered by the SQS message to process the download notification event. |
+| 7 | **Lambda Invokes SES** | Lambda processes the event and invokes AWS SES (Simple Email Service) to send the notification. |
+| 8 | **SES Sends Email with Download Link** | AWS SES delivers the email notification with the download link to the recipient. |
+| 9 | **Download via CloudFront CDN** | Client downloads the file directly from S3 via AWS CloudFront CDN, providing low-latency access with edge caching for faster downloads globally. |
+
+#### Download Flow Key Benefits
+
+- 🌐 Elastic Load Balancer for high availability
+- � CloudFront CDN for low-latency global edge caching
+- �💾 Direct S3 download bypasses server
+- 🔗 Event-driven architecture with SNS & SQS
+- ⚡ Serverless notifications with Lambda
+- 📧 Email notifications with download link via AWS SES
+- 📊 Download analytics in PostgreSQL RDS
 
 ---
 

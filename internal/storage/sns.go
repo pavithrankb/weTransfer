@@ -25,7 +25,6 @@ func NewSNS(ctx context.Context) (*SNS, error) {
 }
 
 // ShareDownloadMessage is the event published to SNS for email sharing
-// TODO: Replace direct S3 URLs with application-level download links
 type ShareDownloadMessage struct {
 	EventType   string   `json:"event_type"`
 	TransferID  string   `json:"transfer_id"`
