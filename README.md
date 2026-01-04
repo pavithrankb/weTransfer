@@ -67,8 +67,8 @@ This section provides a visual overview of the file transfer architecture, inclu
 #### Download Flow Key Benefits
 
 - 🌐 Elastic Load Balancer for high availability
-- � CloudFront CDN for low-latency global edge caching
-- �💾 Direct S3 download bypasses server
+- 🚀 CloudFront CDN for low-latency global edge caching
+- 💾 Direct S3 download bypasses server
 - 🔗 Event-driven architecture with SNS & SQS
 - ⚡ Serverless notifications with Lambda
 - 📧 Email notifications with download link via AWS SES
@@ -78,12 +78,28 @@ This section provides a visual overview of the file transfer architecture, inclu
 
 ## Prerequisites
 
-- `DATABASE_URL` environment variable pointing to PostgreSQL
-- `S3_BUCKET` environment variable for the S3 bucket
-- AWS credentials/config available at runtime:
-  - Environment variables
-  - AWS profile
-  - EC2 / IAM role
+### Required Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | ✅ Yes |
+| `S3_BUCKET` | AWS S3 bucket name for file storage | ✅ Yes |
+| `AWS_REGION` | AWS region (e.g., `us-east-1`) | ✅ Yes |
+
+### Optional Environment Variables (Email Sharing)
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SNS_TOPIC_ARN` | AWS SNS topic ARN for email notifications | For email sharing |
+| `SQS_QUEUE_URL` | AWS SQS queue URL for email worker | For email sharing |
+| `SES_FROM_EMAIL` | Verified SES sender email address | For email sharing |
+
+### AWS Credentials
+
+AWS credentials must be available at runtime via one of:
+- Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+- AWS profile (`~/.aws/credentials`)
+- EC2 / IAM instance role
 
 ---
 
@@ -151,6 +167,17 @@ This prevents race conditions from retries or duplicate requests.
 
 ## API Endpoints
 
+### GET `/health`
+
+Health check endpoint.
+
+**Response — 200 OK**
+```json
+{ "status": "OK" }
+```
+
+---
+
 ### POST `/transfers`
 
 Create a transfer record.
@@ -176,19 +203,24 @@ Create a transfer record.
 
 ### GET `/transfers`
 
-List transfers with filtering and pagination.
+List transfers with filtering, sorting, and pagination.
 
 **Query Parameters**
-- `status`: (Optional) Filter by status (INIT, READY, EXPIRED, DELETED)
-- `limit`: (Optional) Items per page (default 50, max 100)
-- `offset`: (Optional) Pagination offset (default 0)
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `status` | Filter by status (INIT, READY, EXPIRED, DELETED) | All |
+| `limit` | Items per page (1-100) | 50 |
+| `offset` | Pagination offset | 0 |
+| `sort_by` | Sort field: `created_at`, `expires_at`, `max_downloads`, `file_size` | `created_at` |
+| `order` | Sort order: `ASC` or `DESC` | `DESC` |
 
 **Response — 200 OK**
 ```json
 {
   "items": [...],
   "limit": 50,
-  "offset": 0
+  "offset": 0,
+  "total_count": 125
 }
 ```
 
@@ -201,10 +233,14 @@ Get transfer details.
 {
   "id": "<uuid>",
   "status": "READY",
-  "expires_at": "...",
+  "expires_at": "2026-02-01T10:00:00Z",
+  "created_at": "2026-01-01T10:00:00Z",
   "download_count": 0,
   "max_downloads": 3,
-  ...
+  "filename": "video.mp4",
+  "file_type": "video/mp4",
+  "file_size": 10485760,
+  "uploaded_at": "2026-01-01T10:05:00Z"
 }
 ```
 
@@ -292,12 +328,20 @@ Mark the transfer as ready for download.
    - transfer exists
    - `status == "INIT"`
    - not expired
-3. Atomically update `status → READY`
-4. Return error if concurrent modification prevents the update
+   - `object_key` is set (upload URL was requested)
+3. Validate upload by calling S3 HeadObject to get file metadata
+4. Atomically update `status → READY` and store file metadata
+5. Return error if concurrent modification prevents the update (409 Conflict)
 
 **Response — 200 OK**
 ```json
-{ "id": "<transfer_id>", "status": "READY" }
+{
+  "id": "<transfer_id>",
+  "status": "READY",
+  "filename": "video.mp4",
+  "file_type": "video/mp4",
+  "file_size": 10485760
+}
 ```
 
 ---
@@ -306,8 +350,10 @@ Mark the transfer as ready for download.
 
 Generate a presigned S3 **GET** URL.
 
-**Request**
-- No body
+**Query Parameters**
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `expiry_minutes` | URL expiry time in minutes (1-10080, max 1 week) | 5 |
 
 **Behavior**
 1. Fetch transfer; require:
@@ -316,13 +362,53 @@ Generate a presigned S3 **GET** URL.
    - not expired
    - `object_key` present
    - `download_count < max_downloads`
-2. Generate a presigned GET URL (5-minute expiry)
+2. Generate a presigned GET URL (default 5-minute expiry, configurable)
 3. Atomically increment `download_count`
 
 **Response — 200 OK**
 ```json
 { "download_url": "<presigned GET url>" }
 ```
+
+**Error Responses**
+- `404 Not Found` — Transfer not found
+- `400 Bad Request` — Transfer not ready or object not available
+- `410 Gone` — Transfer expired or download limit reached
+
+---
+
+### POST `/transfers/{id}/share-download`
+
+Share the download link via email. Publishes an event to SNS for async email delivery.
+
+**Request JSON**
+```json
+{
+  "emails": ["recipient1@example.com", "recipient2@example.com"]
+}
+```
+
+**Behavior**
+1. Validate emails (at least one required, basic format validation)
+2. Fetch transfer; require:
+   - transfer exists
+   - `status == "READY"`
+   - not expired
+   - `object_key` present
+3. Generate a presigned GET URL (1-hour expiry)
+4. Publish `TRANSFER_SHARED` event to SNS (async)
+5. Return immediately with accepted status
+
+**Response — 202 Accepted**
+```json
+{ "status": "accepted" }
+```
+
+**Error Responses**
+- `503 Service Unavailable` — Email sharing not configured (SNS_TOPIC_ARN not set)
+- `404 Not Found` — Transfer not found
+- `400 Bad Request` — Invalid emails, transfer not ready, or object not available
+- `410 Gone` — Transfer expired
 
 ---
 
@@ -387,10 +473,39 @@ curl -X GET http://localhost:8080/transfers/<id>/download-url
 
 ```sql
 id UUID PRIMARY KEY
-expires_at TIMESTAMPTZ
-status TEXT
+expires_at TIMESTAMPTZ NOT NULL
+status TEXT NOT NULL DEFAULT 'INIT'
 object_key TEXT
-created_at TIMESTAMPTZ
-max_downloads INT DEFAULT 1
-download_count INT DEFAULT 0
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+max_downloads INT NOT NULL DEFAULT 1
+download_count INT NOT NULL DEFAULT 0
+filename TEXT
+file_type TEXT
+file_size BIGINT
+uploaded_at TIMESTAMPTZ
+```
+
+---
+
+## Email Notification Flow
+
+When a user shares a download link via the `/transfers/{id}/share-download` endpoint:
+
+1. **Backend publishes to SNS** — A `TRANSFER_SHARED` event is published to the configured SNS topic
+2. **SNS fans out to SQS** — The message is delivered to an SQS queue
+3. **Lambda processes the message** — A Lambda function polls SQS and processes the event
+4. **SES sends emails** — Lambda invokes SES to send download link emails to recipients
+
+### SNS Message Format
+
+```json
+{
+  "event_type": "TRANSFER_SHARED",
+  "transfer_id": "<uuid>",
+  "emails": ["recipient@example.com"],
+  "download_url": "<presigned URL>",
+  "expires_at": "2026-01-01T11:00:00Z",
+  "filename": "video.mp4",
+  "file_size": 10485760
+}
 ```
