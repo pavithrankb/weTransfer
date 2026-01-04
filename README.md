@@ -1,49 +1,44 @@
-# We Transfer
+# WeTransfer — File Sharing Platform
 
-A backend service that enables secure, scalable file transfers using **Go**, **PostgreSQL**, and **AWS S3 presigned URLs**.  
-The backend manages transfer lifecycle and permissions, while file bytes are uploaded and downloaded directly from S3.
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/PostgreSQL_RDS-16+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/React-Frontend-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/AWS-S3%20%7C%20CloudFront%20%7C%20ELB%20%7C%20SNS%20%7C%20SQS%20%7C%20Lambda%20%7C%20SES-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS">
+</p>
+
+<p align="center">
+  <strong>A production-ready file transfer service inspired by WeTransfer</strong><br>
+  <em>Secure uploads • Presigned URLs • Event-driven notifications • Zero-proxy architecture</em>
+</p>
 
 ---
 
-## Why This Exists
+## 💡 Why This Exists
 
-This project demonstrates a WeTransfer-style backend architecture where:
+Ever wondered how services like **WeTransfer** handle millions of file transfers without their servers exploding? The secret is **they don't touch your files** — and neither does this project.
 
-- The backend acts as a **control plane**
-- File uploads/downloads happen directly between client and S3
-- Transfer lifecycle and permissions are enforced server-side
-- The backend never proxies file bytes
+This is a **full-stack demonstration** of a modern, cloud-native file sharing platform built with:
+
+| What | Why |
+|------|-----|
+| 🎛️ **Backend as Control Plane** | Orchestrates transfers and manages lifecycle — without ever proxying file bytes |
+| ⚡ **Direct S3 Transfers** | Clients upload/download directly to/from AWS S3 using secure presigned URLs |
+| 🔄 **Transfer Lifecycle Management** | Expiry, download limits, and status transitions are managed server-side |
+| 📧 **Event-Driven Notifications** | SNS → SQS → Lambda → SES pipeline for async email delivery |
+| 🌍 **Global Edge Delivery** | CloudFront CDN ensures fast downloads worldwide |
+| ⚖️ **High Availability** | Elastic Load Balancer distributes traffic across EC2 instances |
+
+> **TL;DR**: Your backend stays lean, your transfers stay fast, and your architecture stays scalable.
 
 ---
 
 ## System Architecture
 
-This section provides a visual overview of the file transfer architecture, including both **Upload** and **Download** flows.
-
-### Upload Flow Architecture
-
-![Upload Flow Architecture](upload.design.drawio.svg)
-
-#### Upload Flow Steps
-
-| Step | Title | Description |
-|------|-------|-------------|
-| 1 | **Request Upload URL** | User selects a file and the React frontend sends a request to the Go backend (AWS EC2) to generate a presigned upload URL. |
-| 2 | **Backend Contacts AWS S3** | Go backend communicates with AWS S3 to create a presigned URL valid for 5 minutes. This URL grants temporary, secure upload access. |
-| 3 | **Store Metadata in PostgreSQL** | Transfer metadata (filename, size, expiry, etc.) is stored in PostgreSQL RDS for tracking and management. |
-| 4 | **URL Returned to Client** | The presigned URL is returned to the frontend client, ready for direct upload. |
-| 5/6 | **Client Uploads Directly to S3** | The client automatically uploads the file directly to AWS S3 using the presigned URL via HTTPS. Backend is completely bypassed for the file transfer. |
-
-#### Upload Flow Key Benefits
-
-- ⏱️ Upload URLs expire in 5 minutes
-- 💾 Direct S3 upload bypasses server
-- 🖥️ Frontend & Backend on AWS EC2
-- 🗄️ Metadata stored in PostgreSQL RDS
-- 🌐 Secure HTTPS transfer via AWS
-- ✅ Scalable cloud architecture
-
----
+This section provides a visual overview of the file transfer architecture, including both **Download** and **Upload** flows.
 
 ### Download Flow Architecture
 
@@ -73,6 +68,31 @@ This section provides a visual overview of the file transfer architecture, inclu
 - ⚡ Serverless notifications with Lambda
 - 📧 Email notifications with download link via AWS SES
 - 📊 Download analytics in PostgreSQL RDS
+
+---
+
+### Upload Flow Architecture
+
+![Upload Flow Architecture](upload.design.drawio.svg)
+
+#### Upload Flow Steps
+
+| Step | Title | Description |
+|------|-------|-------------|
+| 1 | **Request Upload URL** | User selects a file and the React frontend sends a request to the Go backend (AWS EC2) to generate a presigned upload URL. |
+| 2 | **Backend Contacts AWS S3** | Go backend communicates with AWS S3 to create a presigned URL valid for 5 minutes. This URL grants temporary, secure upload access. |
+| 3 | **Store Metadata in PostgreSQL** | Transfer metadata (filename, size, expiry, etc.) is stored in PostgreSQL RDS for tracking and management. |
+| 4 | **URL Returned to Client** | The presigned URL is returned to the frontend client, ready for direct upload. |
+| 5/6 | **Client Uploads Directly to S3** | The client automatically uploads the file directly to AWS S3 using the presigned URL via HTTPS. Backend is completely bypassed for the file transfer. |
+
+#### Upload Flow Key Benefits
+
+- ⏱️ Upload URLs expire in 5 minutes
+- 💾 Direct S3 upload bypasses server
+- 🖥️ Frontend & Backend on AWS EC2
+- 🗄️ Metadata stored in PostgreSQL RDS
+- 🌐 Secure HTTPS transfer via AWS
+- ✅ Scalable cloud architecture
 
 ---
 
