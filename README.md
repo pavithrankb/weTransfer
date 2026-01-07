@@ -4,15 +4,27 @@
   <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/PostgreSQL_RDS-16+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/React-Frontend-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React">
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/AWS-S3%20%7C%20CloudFront%20%7C%20ELB%20%7C%20SNS%20%7C%20SQS%20%7C%20Lambda%20%7C%20SES-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS">
 </p>
 
 <p align="center">
   <strong>A production-ready file transfer service inspired by WeTransfer</strong><br>
   <em>Secure uploads • Presigned URLs • Event-driven notifications • Zero-proxy architecture</em>
+</p>
+
+---
+
+## 🎬 Demo
+
+<p align="center">
+  <a href="https://youtu.be/SZsibG8U2jA">
+    <img src="https://img.shields.io/badge/▶_Watch_Demo-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo on YouTube">
+  </a>
+</p>
+
+<p align="center">
+  👆 <strong><a href="https://youtu.be/SZsibG8U2jA">Click here to watch the demo</a></strong> 👆<br>
+  <em>See the platform in action — file uploads, downloads, and email sharing</em>
 </p>
 
 ---
