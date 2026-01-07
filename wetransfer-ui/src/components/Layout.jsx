@@ -4,7 +4,8 @@ import { Moon, Sun, Info, Cloud, LayoutGrid, X, Pencil, Trash2, ArrowUpRight, Ro
 import { motion, AnimatePresence } from 'framer-motion';
 import ConfirmModal from './ConfirmModal';
 import { listTransfers, deleteTransfer, updateTransfer } from '../services/api';
-import { format, formatDistanceToNow } from 'date-fns';
+
+import { formatInGMT, toGMTDateTimeLocal, fromGMTDateTimeLocal } from '../utils/dateUtils';
 
 const Layout = ({ children }) => {
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
@@ -80,7 +81,7 @@ const Layout = ({ children }) => {
         setEditingId(t.id);
         setEditForm({
             max_downloads: t.max_downloads,
-            expires_at: new Date(t.expires_at).toISOString().slice(0, 16)
+            expires_at: toGMTDateTimeLocal(t.expires_at)
         });
     };
 
@@ -88,7 +89,7 @@ const Layout = ({ children }) => {
         try {
             const updates = { max_downloads: parseInt(editForm.max_downloads) };
             if (editForm.expires_at) {
-                updates.expires_at = new Date(editForm.expires_at).toISOString();
+                updates.expires_at = fromGMTDateTimeLocal(editForm.expires_at);
             }
             await updateTransfer(id, updates);
             setEditingId(null);
@@ -453,7 +454,7 @@ const Layout = ({ children }) => {
                                                     <div>
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                                                             <div>
-                                                                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>Expires At</label>
+                                                                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>Expires At (GMT)</label>
                                                                 <input
                                                                     type="datetime-local"
                                                                     value={editForm.expires_at}
@@ -514,7 +515,7 @@ const Layout = ({ children }) => {
                                                                         {t.filename || 'Untitled File'}
                                                                     </div>
                                                                     <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                                                                        {t.created_at ? formatDistanceToNow(new Date(t.created_at), { addSuffix: true }) : '—'}
+                                                                        Created: {t.created_at ? formatInGMT(t.created_at, 'MMM d, p') : '—'} (GMT)
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -552,7 +553,7 @@ const Layout = ({ children }) => {
                                                                 <Calendar size={14} style={{ color: 'var(--color-primary)' }} />
                                                                 <div>
                                                                     <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Expires</div>
-                                                                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{t.expires_at ? format(new Date(t.expires_at), 'MMM d, p') : '—'}</div>
+                                                                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)' }}>{t.expires_at ? formatInGMT(t.expires_at, 'MMM d, p') : '—'} (GMT)</div>
                                                                 </div>
                                                             </div>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

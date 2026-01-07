@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, DownloadCloud, File, Trash2, Edit2, X, Save, Filter, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { listTransfers, deleteTransfer, updateTransfer } from '../services/api';
-import { formatDistanceToNow, format, isAfter } from 'date-fns';
+import { formatDistanceToNow, isAfter } from 'date-fns';
+import { formatInGMT, toGMTDateTimeLocal, fromGMTDateTimeLocal, getFutureGMTDateTimeLocal } from '../utils/dateUtils';
 import ConfirmModal from '../components/ConfirmModal';
 
 const Dashboard = () => {
@@ -105,7 +106,7 @@ const Dashboard = () => {
     const startEdit = (e, t) => {
         e.preventDefault();
         setEditingId(t.id);
-        const localDate = new Date(t.expires_at).toISOString().slice(0, 16);
+        const localDate = toGMTDateTimeLocal(t.expires_at);
         setEditForm({ max_downloads: t.max_downloads, expires_at: localDate });
     };
 
@@ -119,7 +120,7 @@ const Dashboard = () => {
         try {
             const updates = { max_downloads: parseInt(editForm.max_downloads) };
             if (editForm.expires_at) {
-                updates.expires_at = new Date(editForm.expires_at).toISOString();
+                updates.expires_at = fromGMTDateTimeLocal(editForm.expires_at);
             }
             await updateTransfer(id, updates);
             setEditingId(null);
@@ -167,7 +168,7 @@ const Dashboard = () => {
             targetDate.setDate(targetDate.getDate() + 7);
         }
 
-        const dateStr = format(targetDate, 'PPP');
+        const dateStr = formatInGMT(targetDate, 'PPP');
         const message = usingCustomDate
             ? `Revive this transfer until ${dateStr}?`
             : `Revive this transfer? This will extend expiry by 7 days to ${dateStr}.`;
@@ -368,7 +369,7 @@ const Dashboard = () => {
                                         </span>
                                         {t.file_size && <span>{(t.file_size / (1024 * 1024)).toFixed(2)} MB</span>}
                                         <span style={{ fontSize: '12px', color: t.status === 'EXPIRED' ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
-                                            Expires: {format(new Date(t.expires_at), 'PPP')}
+                                            Expires: {formatInGMT(t.expires_at, 'PPP')} (GMT)
                                         </span>
                                     </div>
                                 </div>

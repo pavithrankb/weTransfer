@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, Check, Plus, Loader, Calendar, File, DownloadCloud, Clock, Copy, Shield, Zap, Globe, Mail, Send } from 'lucide-react';
 import { createTransfer, getUploadUrl, completeTransfer, getDownloadUrl, shareDownload } from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
+import { getFutureGMTDateTimeLocal, getCurrentGMTDateTimeLocal, fromGMTDateTimeLocal } from '../utils/dateUtils';
 
 // Animated Dot Grid Background with Mouse Interaction
 const DotGrid = () => {
@@ -168,11 +169,8 @@ const Upload = () => {
     const [file, setFile] = useState(null);
     const fileInputRef = useRef(null);
 
-    const [expiryDateTime, setExpiryDateTime] = useState(() => {
-        const d = new Date();
-        d.setDate(d.getDate() + 7);
-        return d.toISOString().slice(0, 16);
-    });
+    // Default to 7 days from now in GMT
+    const [expiryDateTime, setExpiryDateTime] = useState(() => getFutureGMTDateTimeLocal(7));
     const [maxDownloads, setMaxDownloads] = useState(10);
     const [progress, setProgress] = useState(0);
     const [transferId, setTransferId] = useState('');
@@ -204,7 +202,7 @@ const Upload = () => {
                 setProgress(prev => (prev < 85 ? prev + 5 : prev));
             }, 400);
 
-            const expiresAtISO = new Date(expiryDateTime).toISOString();
+            const expiresAtISO = fromGMTDateTimeLocal(expiryDateTime);
             const createRes = await createTransfer(expiresAtISO, maxDownloads);
             const { id } = createRes.data;
             setTransferId(id);
@@ -388,9 +386,9 @@ const Upload = () => {
 
                             <div style={{ marginBottom: '24px' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '6px' }}>
-                                    <Calendar size={12} /> Expires At
+                                    <Calendar size={12} /> Expires At (GMT)
                                 </label>
-                                <input type="datetime-local" value={expiryDateTime} onChange={(e) => setExpiryDateTime(e.target.value)} min={new Date().toISOString().slice(0, 16)} style={{ marginBottom: '14px', fontSize: '13px' }} />
+                                <input type="datetime-local" value={expiryDateTime} onChange={(e) => setExpiryDateTime(e.target.value)} min={getCurrentGMTDateTimeLocal()} style={{ marginBottom: '14px', fontSize: '13px' }} />
 
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '6px' }}>
                                     <DownloadCloud size={12} /> Max Downloads

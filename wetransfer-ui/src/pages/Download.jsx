@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download as DownloadIcon, File, AlertCircle, Loader2, Calendar, HardDrive, Activity, RefreshCw, Edit2, Save, X, Trash2 } from 'lucide-react';
 import { getTransfer, getDownloadUrl, updateTransfer } from '../services/api';
-import { format, isAfter } from 'date-fns';
+import { isAfter } from 'date-fns';
+import { formatInGMT, toGMTDateTimeLocal, fromGMTDateTimeLocal, getFutureGMTDateTimeLocal, getCurrentGMTDateTimeLocal } from '../utils/dateUtils';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -44,7 +45,7 @@ const Download = () => {
             setTransfer(data);
             setEditForm({
                 max_downloads: data.max_downloads,
-                expires_at: new Date(data.expires_at).toISOString().slice(0, 16)
+                expires_at: toGMTDateTimeLocal(data.expires_at)
             });
         } catch (err) {
             console.error(err);
@@ -82,7 +83,7 @@ const Download = () => {
         try {
             const updates = { max_downloads: parseInt(editForm.max_downloads) };
             if (editForm.expires_at) {
-                updates.expires_at = new Date(editForm.expires_at).toISOString();
+                updates.expires_at = fromGMTDateTimeLocal(editForm.expires_at);
             }
             await updateTransfer(id, updates);
             setIsEditing(false);
@@ -108,7 +109,7 @@ const Download = () => {
             targetDate.setDate(targetDate.getDate() + 7);
         }
 
-        const dateStr = format(targetDate, 'PPP');
+        const dateStr = formatInGMT(targetDate, 'PPP');
         const message = usingCustomDate
             ? `Revive this transfer until ${dateStr}?`
             : `Revive this transfer? This will extend expiry by 7 days to ${dateStr}.`;
@@ -339,7 +340,7 @@ const Download = () => {
                         {isEditing ? (
                             <div style={{ display: 'grid', gap: '16px' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Expires At</label>
+                                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Expires At (GMT)</label>
                                     <input
                                         type="datetime-local"
                                         value={editForm.expires_at}
@@ -382,11 +383,11 @@ const Download = () => {
                                 </span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <Calendar size={16} />
-                                    <span>Uploaded: {format(new Date(transfer.created_at), 'PP')}</span>
+                                    <span>Uploaded: {formatInGMT(transfer.created_at, 'PP')} (GMT)</span>
                                 </span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', gridColumn: 'span 2', color: !isReady ? theme.text : 'inherit' }}>
                                     <Calendar size={16} />
-                                    <span>Expires: {format(new Date(transfer.expires_at), 'PPP p')}</span>
+                                    <span>Expires: {formatInGMT(transfer.expires_at, 'PPP p')} (GMT)</span>
                                 </span>
                             </div>
                         )}
@@ -478,13 +479,13 @@ const Download = () => {
 
                                 <div style={{ marginBottom: '16px' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-main)', marginBottom: '8px' }}>
-                                        <Calendar size={14} /> Revive Until
+                                        <Calendar size={14} /> Revive Until (GMT)
                                     </label>
                                     <input
                                         type="datetime-local"
                                         value={editForm.expires_at}
                                         onChange={(e) => setEditForm(prev => ({ ...prev, expires_at: e.target.value }))}
-                                        min={new Date().toISOString().slice(0, 16)}
+                                        min={getCurrentGMTDateTimeLocal()}
                                         style={{
                                             width: '100%',
                                             padding: '12px',
